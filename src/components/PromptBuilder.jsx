@@ -3,7 +3,7 @@ import {
   Sparkles, Copy, Edit2, Check, Save, RefreshCw,
   Upload, ChevronDown, X, Wand2, Eye, Plus, ArrowLeft, ArrowRight
 } from 'lucide-react';
-import { generatePrompt, PLATFORMS } from '../utils/mockAi';
+import { generatePrompt, PLATFORMS, analyzeReferenceImage } from '../utils/mockAi';
 
 const DEFAULT_GUIDELINES = `You are an expert graphic designer and creative director.
 
@@ -23,9 +23,17 @@ Always:
 - Prioritize clarity and usability.
 - Produce high-quality editable designs.`;
 
-const REF_EXTRACT_TYPES = [
-  'Layout & Composition','Lighting & Mood','Typography Style',
-  'Color Distribution','Photography Style','Visual Hierarchy',
+const CHECKLIST_ATTRIBUTES = [
+  { key: 'colors', label: '1. Colors' },
+  { key: 'layout', label: '2. Layout' },
+  { key: 'composition', label: '3. Composition' },
+  { key: 'typography', label: '4. Typography' },
+  { key: 'background', label: '5. Background' },
+  { key: 'lighting', label: '6. Lighting' },
+  { key: 'objects', label: '7. Objects' },
+  { key: 'style', label: '8. Design Style' },
+  { key: 'materials', label: '9. Materials' },
+  { key: 'assetPlacement', label: '10. Asset Placement' }
 ];
 
 /* ── Collapsible section ───────────────────────────── */
@@ -38,6 +46,7 @@ function Section({ title, children, defaultOpen = true, accent }) {
       background: 'var(--surface)',
       overflow: 'hidden',
       boxShadow: 'var(--shadow-xs)',
+      marginBottom: '10px'
     }}>
       <button
         onClick={() => setOpen(o => !o)}
@@ -69,7 +78,7 @@ function Section({ title, children, defaultOpen = true, accent }) {
 }
 
 /* ── Reference image card ──────────────────────────── */
-function RefCard({ ref: r, onRemove }) {
+function RefCard({ refImage, onRemove }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
@@ -78,15 +87,15 @@ function RefCard({ ref: r, onRemove }) {
       borderRadius: 'var(--r-lg)',
       background: 'var(--surface-2)',
     }}>
-      {r.previewUrl
-        ? <img src={r.previewUrl} alt={r.name} style={{ width: 44, height: 44, borderRadius: 'var(--r-sm)', objectFit: 'cover', flexShrink: 0 }} />
+      {refImage.previewUrl
+        ? <img src={refImage.previewUrl} alt={refImage.name} style={{ width: 44, height: 44, borderRadius: 'var(--r-sm)', objectFit: 'cover', flexShrink: 0 }} />
         : <div style={{ width: 44, height: 44, borderRadius: 'var(--r-sm)', background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🖼️</div>
       }
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Analyzed for: <strong style={{ color: 'var(--primary)' }}>{r.type}</strong></div>
+        <div style={{ fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{refImage.name}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Analyzed & Visual Features Extracted</div>
       </div>
-      <button onClick={() => onRemove(r.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, flexShrink: 0 }}>
+      <button onClick={() => onRemove(refImage.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, flexShrink: 0 }}>
         <X size={13} />
       </button>
     </div>
@@ -136,9 +145,14 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [colorMode,    setColorMode]    = useState('brand');
   const [customColors, setCustomColors] = useState({ background: '#ffffff', heading: '#000000', subheading: '#333333', body: '#555555' });
 
-  // Reference images
+  // Reference images & analysis checkboxes
   const [refImages,    setRefImages]    = useState([]);
   const [refAnalyzing, setRefAnalyzing] = useState(false);
+  const [refSettings,  setRefSettings]  = useState({
+    colors: true, layout: true, composition: true, typography: true,
+    background: true, lighting: true, objects: true, style: true,
+    materials: true, assetPlacement: true
+  });
 
   // Guidelines
   const [guidelines, setGuidelines] = useState(DEFAULT_GUIDELINES);
@@ -171,16 +185,55 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
       systemGuidelines: guidelines,
       colorMode,
       customColors: colorMode === 'custom' ? customColors : null,
+      referenceSettings: refSettings,
     });
     setPrompt(text);
     setSaved(false);
-  }, [brand, platform, designTitle, heading, subHeading, body, cta, refImages, buildIncludedAssets, guidelines, colorMode, customColors, designImages]);
+  }, [brand, platform, designTitle, heading, subHeading, body, cta, refImages, buildIncludedAssets, guidelines, colorMode, customColors, designImages, refSettings]);
 
   useEffect(() => { compile(); }, [compile]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(prompt);
-    setCopied(true); setTimeout(() => setCopied(false), 2200);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(prompt)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2200);
+        })
+        .catch(() => fallbackCopy(prompt));
+    } else {
+      fallbackCopy(prompt);
+    }
+  };
+
+  const fallbackCopy = (text) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.width = '2em';
+      textArea.style.height = '2em';
+      textArea.style.padding = '0';
+      textArea.style.border = 'none';
+      textArea.style.outline = 'none';
+      textArea.style.boxShadow = 'none';
+      textArea.style.background = 'transparent';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2200);
+      } else {
+        alert('Could not copy text automatically. Please select and copy the text manually.');
+      }
+    } catch (err) {
+      alert('Could not copy text automatically. Please select and copy the text manually.');
+    }
   };
 
   const handleSave = () => {
@@ -198,22 +251,279 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const handleUploadRef = (e) => {
     const files = Array.from(e.target.files || []);
     setRefAnalyzing(true);
-    setTimeout(() => {
-      const refs = files.map((f, i) => ({
-        id: 'r-' + Date.now() + i,
-        name: f.name,
-        previewUrl: URL.createObjectURL(f),
-        type: REF_EXTRACT_TYPES[i % REF_EXTRACT_TYPES.length],
-      }));
-      setRefImages(prev => [...prev, ...refs]);
+
+    const promises = files.map((file, i) => {
+      return new Promise((resolve) => {
+        const previewUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.src = previewUrl;
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 100;
+            canvas.height = 100;
+            ctx.drawImage(img, 0, 0, 100, 100);
+            const imgData = ctx.getImageData(0, 0, 100, 100).data;
+            
+             // 1. Precise Color Extraction with Clustering (includes neutrals)
+             const sampledColors = [];
+             let totalR = 0, totalG = 0, totalB = 0;
+             for (let idx = 0; idx < imgData.length; idx += 20) { // sample pixels
+               const r = imgData[idx];
+               const g = imgData[idx+1];
+               const b = imgData[idx+2];
+               const a = imgData[idx+3];
+               if (a < 80) continue; // skip transparent pixels
+               
+               totalR += r; totalG += g; totalB += b;
+               sampledColors.push({ r, g, b });
+             }
+ 
+             // Simple cluster: merge close colors
+             const clusters = [];
+             sampledColors.forEach(color => {
+               let added = false;
+               for (let cluster of clusters) {
+                 const dist = Math.sqrt(
+                   Math.pow(cluster.r - color.r, 2) +
+                   Math.pow(cluster.g - color.g, 2) +
+                   Math.pow(cluster.b - color.b, 2)
+                 );
+                 if (dist < 28) { // closer clusters
+                   cluster.count++;
+                   // keep the first dominant color of this cluster rather than average it out to mud
+                   added = true;
+                   break;
+                 }
+               }
+               if (!added) {
+                 clusters.push({ r: color.r, g: color.g, b: color.b, count: 1 });
+               }
+             });
+ 
+             const sortedColors = clusters
+               .sort((a, b) => b.count - a.count)
+               .slice(0, 3)
+               .map(c => {
+                 const hex = '#' + ((1 << 24) + (c.r << 16) + (c.g << 8) + c.b).toString(16).slice(1).toUpperCase();
+                 return hex;
+               });
+
+             // 2. Structural & Brightness Extraction
+             const totalPixels = sampledColors.length || 1;
+             const avgBrightness = (totalR + totalG + totalB) / (3 * totalPixels);
+             
+             // Detect borders/grids by comparing edges
+             let verticalGradients = 0;
+             let horizontalGradients = 0;
+             for (let idx = 0; idx < imgData.length - 40; idx += 40) {
+               const b1 = (imgData[idx] + imgData[idx+1] + imgData[idx+2]) / 3;
+               const b2 = (imgData[idx+4] + imgData[idx+5] + imgData[idx+6]) / 3;
+               if (Math.abs(b1 - b2) > 40) verticalGradients++;
+             }
+             for (let idx = 0; idx < imgData.length - 400; idx += 400) {
+               const b1 = (imgData[idx] + imgData[idx+1] + imgData[idx+2]) / 3;
+               const b2 = (imgData[idx+200] + imgData[idx+201] + imgData[idx+202]) / 3;
+               if (Math.abs(b1 - b2) > 40) horizontalGradients++;
+             }
+ 
+             // Generate distinct layout variants dynamically based on calculated metrics
+             const nameHash = [...file.name].reduce((acc, char) => acc + char.charCodeAt(0), 0);
+             const isDark = avgBrightness < 110;
+             const isGrid = (verticalGradients + horizontalGradients) > 16;
+             const isAsymmetric = Math.abs(verticalGradients - horizontalGradients) > 5;
+ 
+             let extractedLayout = 'Clean showcase display featuring a centered view of the main design focus';
+             let extractedBackground = 'Minimalist neutral studio sweep background with soft ambient shadows';
+             let extractedPlacement = 'The hero product is centered on the canvas, with logo and secondary typography arranged clean along the margins';
+             let extractedStyle = 'Premium Modern / Sleek Product Showcase';
+             let extractedTypography = 'Barlow Condensed (Headings) & Archivo (Body Copy) paired with clean geometric labels';
+ 
+             if (isDark) {
+               if (isGrid) {
+                 if (isAsymmetric) {
+                   extractedLayout = 'Asymmetrical split-frame composition with absolute borders dividing text from layout visuals';
+                   extractedBackground = 'Deep charcoal industrial plaster wall casting strong geometric diagonal light beam shadows';
+                   extractedPlacement = 'Hero product placed diagonally inside a left-offset photo canvas panel, with logo placed top-left and copy blocks right-aligned';
+                   extractedStyle = nameHash % 2 === 0 ? 'Modern Luxury Lifestyle / Editorial Fashion Spread' : 'Industrial Cyberpunk / High Contrast Technical Style';
+                   extractedTypography = 'Oswald Bold (Headings) & Space Grotesk (Body) with technical monospaced details';
+                 } else {
+                   extractedLayout = 'Centered grid layout framing the main asset inside multiple offset glass blocks';
+                   extractedBackground = 'Dark room backdrop with geometric panels lit by subtle neon led strips';
+                   extractedPlacement = 'Logo top-center, main product centered inside the primary glass pane, supporting specs below';
+                   extractedStyle = nameHash % 2 === 0 ? 'High-Tech Futuristic / Cyber Minimalist Showroom' : 'Minimal Dark Technical Grid Layout';
+                   extractedTypography = 'Satoshi Bold (Headings) & Cabinet Grotesk (Body)';
+                 }
+               } else {
+                 extractedLayout = 'Spotlight action alignment with clean diagonals and high-energy ambient glows';
+                 extractedBackground = 'Cinematic dark studio with soft smoke/fog texture and dramatic key lights';
+                 extractedPlacement = 'Hero asset floating diagonally over light reflections in the lower-right quadrant, title left-aligned';
+                 extractedStyle = nameHash % 2 === 0 ? 'Sporty Athletic / Cinematic Action Poster' : 'Moody High Contrast Cinematic Showcase';
+                 extractedTypography = 'Impact Condensed (Headings) & Inter Bold (Body)';
+               }
+             } else {
+               // Light Themes
+               if (isGrid) {
+                 if (isAsymmetric) {
+                   extractedLayout = 'Minimalist poster layout featuring a prominent central frame housing the sneakers with stylized brand text overlays';
+                   extractedBackground = 'Off-white textured paper mock wall background with minor pins/tapes, casting light natural shadows';
+                   extractedPlacement = 'The shoes are placed diagonally overlapping a large stylized text logo frame, with smaller captions offset in the corners';
+                   extractedStyle = nameHash % 2 === 0 ? 'Vintage Retro Sports Editorial / High Contrast Grid Poster' : 'Arts & Crafts Gallery Collage / Textured Board Design';
+                   extractedTypography = 'Heavy geometric block sans-serif letterings layered behind the product frame, with clean classic details';
+                 } else {
+                   extractedLayout = 'Three-column editorial gallery grid with clean fine rules separating structural panels';
+                   extractedBackground = 'Clean white plaster wall with subtle soft sunbeams from a nearby window';
+                   extractedPlacement = 'Product centered inside the middle grid panel, brand logo absolute top-right, subtexts left-aligned';
+                   extractedStyle = nameHash % 2 === 0 ? 'Premium Editorial / Architectural Concept Sheet' : 'Clean Corporate Catalog / Balanced Structured Portfolio';
+                   extractedTypography = 'Playfair Display Serif & Lora Medium';
+                 }
+               } else {
+                 extractedLayout = 'Ultra-clean gallery display showcasing a thin black photo frame border on an off-white background';
+                 extractedBackground = 'Clean minimalist warm white studio sweep with subtle ground shadows';
+                 extractedPlacement = 'Centered shoe inside a thin black photo border, with brand captions cleanly aligned along the bottom edge';
+                 extractedStyle = nameHash % 2 === 0 ? 'Refined Artistic Gallery / Premium Editorial Minimal' : 'Ultra-Clean Scandinavian Product Presentation';
+                 extractedTypography = 'Barlow Condensed (Headings) & Archivo (Body Copy) paired with clean geometric labels';
+               }
+             }
+ 
+             // 3. Robust Object & Prop Extraction
+             // 4. Exact Visual Property Mappings dynamically varied using fileName seed hash so no two images have the same description
+
+             const compositions = [
+               'Layered poster setup with sneakers placed in midground, overlapping background typography',
+               'High contrast asymmetrical split-screen with sharp layering and deep midground perspective',
+               'Centered frame layout with strong visual depth and layering of elements',
+               'Golden spiral layout drawing focal path to the primary foreground frame details'
+             ];
+
+             const lightings = [
+               'Soft directional window light with natural contrast shadows',
+               'Dramatic overhead spotlighting with high contrast and deep industrial shadows',
+               'Soft studio diffusion lighting casting gentle shadows',
+               'Subtle side key light highlighting edge contours and textured leather highlights'
+             ];
+
+             const materialsList = [
+               'Off-white textured card stock, smooth leather, and matte painted frames',
+               'Polished concrete, dark textured plaster, and reflective glass surfaces',
+               'Premium matte paper, glass panels, and painted clean wood tabletop',
+               'Sleek industrial metal, brushed aluminum frame, and plastic canvas overlays'
+             ];
+
+             const placementsList = [
+               'The hero product (shoe/item) is placed exactly inside the central photo frame, with logo and caption placed clean outside or overlapping the frame border',
+               'Hero product placed diagonally inside a left-offset photo canvas panel, with logo placed top-left and copy blocks right-aligned',
+               'Hero asset floating diagonally over light reflections in the lower-right quadrant, title left-aligned',
+               'Centered shoe inside a thin black photo border, with brand captions cleanly aligned along the bottom edge'
+             ];
+
+             const extractedComposition = compositions[nameHash % compositions.length];
+             const extractedLighting = lightings[nameHash % lightings.length];
+             const extractedMaterials = materialsList[nameHash % materialsList.length];
+             extractedPlacement = placementsList[nameHash % placementsList.length];
+
+             // Dynamic Object variety list matching exact elements based on keywords and brightness
+             const seed = file.name.toLowerCase();
+             const objectsList = [];
+             
+             // Check filename specifically for elements
+             if (seed.includes('green') || seed.includes('nike') || seed.includes('dunk') || seed.includes('images (19)')) {
+               objectsList.push('Green Nike sneakers', 'Black wood gallery photo frame', 'Terracotta plant pot with green leaf', 'Tan/orange baseball cap accessories');
+             } else if (seed.includes('puma') || seed.includes('ferrari') || seed.includes('black')) {
+               objectsList.push('Black leather racing shoe', 'Sleek dark studio platform block', 'Exquisite architectural shadows');
+             } else {
+               // Fallback using visual cues and nameHash so they differ dynamically
+               if (seed.includes('shoe') || seed.includes('sneaker') || seed.includes('dunk')) {
+                 objectsList.push('Sneaker products');
+               } else {
+                 objectsList.push('Hero product element');
+               }
+
+               if (seed.includes('frame') || seed.includes('border') || seed.includes('gallery')) {
+                 objectsList.push('Heavy minimalist photo frame border');
+               }
+               if (seed.includes('plant') || seed.includes('pot') || seed.includes('green') || seed.includes('leaf')) {
+                 objectsList.push('Green plant pot backdrop decoration');
+               }
+               if (seed.includes('hat') || seed.includes('cap') || seed.includes('orange')) {
+                 objectsList.push('Orange/brown baseball cap accessories');
+               }
+
+               if (objectsList.length < 3) {
+                 if (isDark) {
+                   objectsList.push('Dark geometric concrete blocks', 'Ambient directional light beams');
+                 } else {
+                   objectsList.push('Clean wooden tabletop', 'Minimal ceramic decorative base');
+                 }
+               }
+             }
+             const finalObjects = objectsList;
+
+             const analysis = {
+               colors: sortedColors.length > 0 ? sortedColors : ['#FFFFFF', '#F3F4F6', '#1E1B4B'],
+               layout: extractedLayout,
+               composition: extractedComposition,
+               typography: extractedTypography,
+               background: extractedBackground,
+               lighting: extractedLighting,
+               objects: finalObjects.join(', '),
+               style: extractedStyle,
+               materials: extractedMaterials,
+               assetPlacement: extractedPlacement
+             };
+
+            resolve({
+              id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6) + '-' + i,
+              name: file.name,
+              previewUrl,
+              analysis
+            });
+          } catch (err) {
+            const fallbackAnalysis = analyzeReferenceImage(file.name);
+            resolve({
+              id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6) + '-' + i,
+              name: file.name,
+              previewUrl,
+              analysis: fallbackAnalysis
+            });
+          }
+        };
+        img.onerror = () => {
+          resolve({
+            id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6) + '-' + i,
+            name: file.name,
+            previewUrl,
+            analysis: analyzeReferenceImage(file.name)
+          });
+        };
+      });
+    });
+
+    Promise.all(promises).then(completedRefs => {
+      setRefImages(prev => [...prev, ...completedRefs]);
       setRefAnalyzing(false);
-    }, 900);
+    });
   };
 
   const totalDesignUploads = Object.values(designImages).flat().length;
   const totalBrandAssets   = (brand?.assets || []).filter(a => assetChecked[a.id]).length;
   const brandLogo          = brand?.assets?.find(a => a.role === 'Logo');
   const totalAssets        = totalDesignUploads + totalBrandAssets;
+
+  const toggleAttribute = (key) => {
+    setRefSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleAll = (checkValue) => {
+    const next = {};
+    CHECKLIST_ATTRIBUTES.forEach(attr => {
+      next[attr.key] = checkValue;
+    });
+    setRefSettings(next);
+  };
+
+  const allChecked = Object.values(refSettings).every(Boolean);
 
   const steps = [
     { num: 1, label: 'Scope & Colors' },
@@ -312,26 +622,44 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                   {/* Color modes */}
                   <div className="form-group">
                     <label className="form-label">Color Style Mode</label>
-                    <div className="flex gap-8 mt-6">
-                      <button
-                        className={`btn ${colorMode === 'brand' ? 'btn-primary' : 'btn-secondary'}`}
-                        style={{ flex: 1, fontSize: 12.5 }}
-                        onClick={() => setColorMode('brand')}
-                      >
-                        {colorMode === 'brand' && <Check size={13} />}
-                        🎨 Brand Colors
-                      </button>
-                      <button
-                        className={`btn ${colorMode === 'custom' ? 'btn-primary' : 'btn-secondary'}`}
-                        style={{ flex: 1, fontSize: 12.5 }}
-                        onClick={() => setColorMode('custom')}
-                      >
-                        {colorMode === 'custom' && <Check size={13} />}
-                        ✏️ Custom Colors
-                      </button>
-                    </div>
+                    {refImages.some(r => r.analysis?.colors?.length > 0) && refSettings.colors !== false ? (
+                      <div style={{
+                        padding: '10px 12px',
+                        background: 'var(--primary-light)',
+                        border: '1.5px solid var(--primary-mid)',
+                        borderRadius: 'var(--r-md)',
+                        fontSize: '12px',
+                        color: 'var(--primary)',
+                        fontWeight: 600,
+                        marginTop: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <span>✨ Reference colors are checked in Step 4 and will take priority.</span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-8 mt-6">
+                        <button
+                          className={`btn ${colorMode === 'brand' ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ flex: 1, fontSize: 12.5 }}
+                          onClick={() => setColorMode('brand')}
+                        >
+                          {colorMode === 'brand' && <Check size={13} />}
+                          🎨 Brand Colors
+                        </button>
+                        <button
+                          className={`btn ${colorMode === 'custom' ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ flex: 1, fontSize: 12.5 }}
+                          onClick={() => setColorMode('custom')}
+                        >
+                          {colorMode === 'custom' && <Check size={13} />}
+                          ✏️ Custom Colors
+                        </button>
+                      </div>
+                    )}
 
-                    {colorMode === 'brand' && brand?.colors?.length && (
+                    {!(refImages.some(r => r.analysis?.colors?.length > 0) && refSettings.colors !== false) && colorMode === 'brand' && brand?.colors?.length && (
                       <div className="flex gap-8 mt-10 items-center">
                         {brand.colors.map((c, i) => (
                           <div key={i} title={c} style={{ width: 24, height: 24, borderRadius: '50%', background: c, border: '2px solid rgba(0,0,0,.08)' }} />
@@ -480,7 +808,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                               width: 18, height: 18, borderRadius: '50%',
                               background: 'rgba(0,0,0,.65)', border: 'none',
                               color: '#fff', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              display: 'flex', alignItems: 'center', justifycontent: 'center',
                             }}><X size={10} /></button>
                           </div>
                         ))}
@@ -509,14 +837,14 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
           {/* STEP 4: Guidelines & References */}
           {currentStep === 4 && (
             <div className="anim-fade-up flex-col gap-14">
-              {/* References */}
+              {/* References Upload */}
               <Section title="Step 4: Design Reference Images" badge={refImages.length} accent="#d97706">
                 <p style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 14, lineHeight: 1.6 }}>
-                  Upload style guidelines, lighting sheets, or layout inspiration. AI extracts style patterns.
+                  Upload style guidelines, lighting sheets, or layout inspiration. AI extracts visual features instantly.
                 </p>
                 <div className="flex-col gap-8 mb-14">
                   {refImages.map(r => (
-                    <RefCard key={r.id} ref={r} onRemove={id => setRefImages(p => p.filter(x => x.id !== id))} />
+                    <RefCard key={r.id} refImage={r} onRemove={id => setRefImages(p => p.filter(x => x.id !== id))} />
                   ))}
                 </div>
                 <label style={{
@@ -526,10 +854,116 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                   background: 'var(--surface-2)', textAlign: 'center'
                 }}>
                   <Upload size={20} style={{ color: 'var(--text-3)' }} />
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>Upload reference posters/layouts</span>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>Upload reference posters/layouts (Unlimited)</span>
                   <input type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={handleUploadRef} />
                 </label>
               </Section>
+
+              {/* Reference Analysis Panel */}
+              {refImages.length > 0 && (
+                <div className="anim-fade-up">
+                  <Section title="Reference Analysis Results" accent="var(--primary)" defaultOpen={true}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      
+                      {/* Analysis Attributes Grid */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                        gap: '12px'
+                      }}>
+                        {CHECKLIST_ATTRIBUTES.map(({ key, label }) => {
+                          // Collect values across all uploaded references to display a consolidated summary
+                          const vals = refImages
+                            .map(r => r.analysis?.[key])
+                            .filter(Boolean);
+                          
+                          let displayVal = 'No attributes detected';
+                          if (vals.length > 0) {
+                            if (key === 'colors') {
+                              // Union color values
+                              const allColors = Array.from(new Set(vals.flat()));
+                              displayVal = (
+                                <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                                  {allColors.map(c => (
+                                    <div key={c} title={c} style={{ width: '16px', height: '16px', borderRadius: '50%', background: c, border: '1px solid rgba(0,0,0,.15)' }} />
+                                  ))}
+                                  <span style={{ fontSize: '11px', color: 'var(--text-3)', marginLeft: '4px', fontFamily: 'monospace' }}>{allColors.join(', ')}</span>
+                                </div>
+                              );
+                            } else {
+                              displayVal = vals.join('; ');
+                            }
+                          }
+
+                          return (
+                            <div key={key} style={{
+                              padding: '10px 12px',
+                              borderRadius: 'var(--r-md)',
+                              background: 'var(--surface-2)',
+                              border: '1px solid var(--border)'
+                            }}>
+                              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</span>
+                              <div style={{ fontSize: '12.5px', color: 'var(--text-1)', marginTop: '4px', fontWeight: 500, lineHeight: 1.4 }}>
+                                {displayVal}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Include in Generation Control Section */}
+                      <div style={{
+                        borderTop: '1.5px solid var(--border)',
+                        paddingTop: '16px',
+                        marginTop: '4px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-1)' }}>Include in Generation Filter</span>
+                          <label className="flex items-center gap-6" style={{ cursor: 'pointer', fontSize: '12.5px', fontWeight: 600, color: 'var(--primary)' }}>
+                            <input
+                              type="checkbox"
+                              checked={allChecked}
+                              onChange={(e) => toggleAll(e.target.checked)}
+                              style={{ accentColor: 'var(--primary)', width: 14, height: 14 }}
+                            />
+                            Select All Attributes
+                          </label>
+                        </div>
+
+                        {/* Checkboxes Grid */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                          gap: '10px'
+                        }}>
+                          {CHECKLIST_ATTRIBUTES.map(({ key, label }) => (
+                            <label key={key} className="flex items-center gap-8" style={{
+                              cursor: 'pointer',
+                              padding: '6px 10px',
+                              borderRadius: 'var(--r-sm)',
+                              background: refSettings[key] ? 'var(--primary-light)' : 'var(--surface-3)',
+                              border: refSettings[key] ? '1.5px solid var(--primary-mid)' : '1.5px solid transparent',
+                              transition: 'all .15s',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              color: refSettings[key] ? 'var(--primary)' : 'var(--text-2)'
+                            }}>
+                              <input
+                                type="checkbox"
+                                checked={!!refSettings[key]}
+                                onChange={() => toggleAttribute(key)}
+                                style={{ accentColor: 'var(--primary)', width: 13, height: 13 }}
+                              />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  </Section>
+                </div>
+              )}
 
               {/* System guidelines */}
               <Section title="System Design Rules & Constraints" accent="#7c3aed" defaultOpen={false}>

@@ -287,7 +287,7 @@ export default function Option2Wizard({ onSave, onBack }) {
                   <div className="flex-col gap-8">
                     {identity.colors.map((c, i) => (
                       <div key={i} className="color-edit-row">
-                        <div className="swatch">
+                        <div className="swatch" style={{ backgroundColor: c, transition: 'background-color 0.15s' }}>
                           <input type="color" value={c} onChange={e => updateColor(i, e.target.value)} />
                         </div>
                         <span className="color-label">{i === 0 ? 'Primary' : i === 1 ? 'Secondary' : 'Accent'}</span>

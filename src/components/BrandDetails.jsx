@@ -153,69 +153,61 @@ export default function BrandDetails({ brand, onBack, onUpdateBrand, onDeleteBra
   const [tab, setTab] = useState('overview');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Use functional updater pattern to always use fresh state
+  // Use state initialized from props
   const [localBrand, setLocalBrand] = useState(() => ({ ...brand }));
+
+  // Keep local state in sync when parent brand changes, inside useEffect to prevent render-phase updates
+  React.useEffect(() => {
+    setLocalBrand({ ...brand });
+  }, [brand]);
 
   const updateField = useCallback((field, value) => {
     setLocalBrand(prev => {
       const updated = { ...prev, [field]: value };
-      // Persist up immediately
-      onUpdateBrand(updated);
       return updated;
     });
-  }, [onUpdateBrand]);
+    // Trigger parent update outside of the state reducer path
+    onUpdateBrand({ ...brand, [field]: value });
+  }, [brand, onUpdateBrand]);
 
   /* Color helpers — functional updater avoids stale closure */
   const updateColor = useCallback((index, value) => {
-    setLocalBrand(prev => {
-      const nextColors = [...(prev.colors || [])];
-      nextColors[index] = value;
-      const updated = { ...prev, colors: nextColors };
-      onUpdateBrand(updated);
-      return updated;
-    });
-  }, [onUpdateBrand]);
+    const nextColors = [...(brand.colors || [])];
+    nextColors[index] = value;
+    setLocalBrand(prev => ({ ...prev, colors: nextColors }));
+    onUpdateBrand({ ...brand, colors: nextColors });
+  }, [brand, onUpdateBrand]);
 
   const addColor = () => {
-    setLocalBrand(prev => {
-      const updated = { ...prev, colors: [...(prev.colors || []), '#cccccc'] };
-      onUpdateBrand(updated);
-      return updated;
-    });
+    const nextColors = [...(brand.colors || []), '#cccccc'];
+    setLocalBrand(prev => ({ ...prev, colors: nextColors }));
+    onUpdateBrand({ ...brand, colors: nextColors });
   };
 
   const removeColor = (index) => {
-    setLocalBrand(prev => {
-      const updated = { ...prev, colors: (prev.colors || []).filter((_, i) => i !== index) };
-      onUpdateBrand(updated);
-      return updated;
-    });
+    const nextColors = (brand.colors || []).filter((_, i) => i !== index);
+    setLocalBrand(prev => ({ ...prev, colors: nextColors }));
+    onUpdateBrand({ ...brand, colors: nextColors });
   };
 
   /* Asset helpers */
   const addAssets = useCallback((newAssets) => {
-    setLocalBrand(prev => {
-      const updated = { ...prev, assets: [...(prev.assets || []), ...newAssets] };
-      onUpdateBrand(updated);
-      return updated;
-    });
-  }, [onUpdateBrand]);
+    const nextAssets = [...(brand.assets || []), ...newAssets];
+    setLocalBrand(prev => ({ ...prev, assets: nextAssets }));
+    onUpdateBrand({ ...brand, assets: nextAssets });
+  }, [brand, onUpdateBrand]);
 
   const handleRoleChange = useCallback((id, role) => {
-    setLocalBrand(prev => {
-      const updated = { ...prev, assets: prev.assets.map(a => a.id === id ? { ...a, role } : a) };
-      onUpdateBrand(updated);
-      return updated;
-    });
-  }, [onUpdateBrand]);
+    const nextAssets = (brand.assets || []).map(a => a.id === id ? { ...a, role } : a);
+    setLocalBrand(prev => ({ ...prev, assets: nextAssets }));
+    onUpdateBrand({ ...brand, assets: nextAssets });
+  }, [brand, onUpdateBrand]);
 
   const handleDeleteAsset = useCallback((id) => {
-    setLocalBrand(prev => {
-      const updated = { ...prev, assets: (prev.assets || []).filter(a => a.id !== id) };
-      onUpdateBrand(updated);
-      return updated;
-    });
-  }, [onUpdateBrand]);
+    const nextAssets = (brand.assets || []).filter(a => a.id !== id);
+    setLocalBrand(prev => ({ ...prev, assets: nextAssets }));
+    onUpdateBrand({ ...brand, assets: nextAssets });
+  }, [brand, onUpdateBrand]);
 
   /* Bulk upload */
   const handleBulkUpload = (e) => {

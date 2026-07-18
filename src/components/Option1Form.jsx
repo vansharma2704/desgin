@@ -11,7 +11,7 @@ const INDUSTRIES = [
 function ColorRow({ label, color, index, onChange, onRemove, canRemove }) {
   return (
     <div className="color-edit-row">
-      <div className="swatch">
+      <div className="swatch" style={{ backgroundColor: color, transition: 'background-color 0.15s' }}>
         <input type="color" value={color} onChange={e => onChange(index, e.target.value)} />
       </div>
       <span className="color-label">{label}</span>
