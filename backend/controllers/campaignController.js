@@ -1,4 +1,5 @@
 import Campaign from '../models/Campaign.js';
+import mongoose from 'mongoose';
 
 // @desc    Get all campaigns
 // @route   GET /api/campaigns
@@ -7,41 +8,48 @@ export const getCampaigns = async (req, res, next) => {
   const { brandId } = req.query;
   try {
     const query = {};
-    if (brandId) {
-      query.brand = brandId;
+    if (brandId && mongoose.isValidObjectId(brandId)) {
+      query.brandId = brandId;
     }
+    const campaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
 
-    let campaigns;
-    if (req.user.role === 'Reviewer') {
-      campaigns = await Campaign.find(query).populate('brand', 'name');
-    } else {
-      // Editor sees campaigns for their brands
-      campaigns = await Campaign.find({ ...query, createdBy: req.user._id }).populate('brand', 'name');
-    }
+    // Enrich with count stats dynamically
+    const enriched = await Promise.all(
+      campaigns.map(async (c) => {
+        const [designCount, promptCount] = await Promise.all([
+          mongoose.model('Design').countDocuments({ campaignId: c._id }),
+          mongoose.model('Prompt').countDocuments({ campaignId: c._id }),
+        ]);
+        return {
+          ...c,
+          designCount,
+          promptCount,
+        };
+      })
+    );
 
-    res.json(campaigns);
+    res.json(enriched);
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Create a campaign
+// @desc    Create a new campaign
 // @route   POST /api/campaigns
 // @access  Private (Editor only)
 export const createCampaign = async (req, res, next) => {
-  const { name, description, brandId, status } = req.body;
+  const { name, description, brandId } = req.body;
 
   try {
     if (!name || !brandId) {
       res.status(400);
-      throw new Error('Campaign name and brand ID are required');
+      throw new Error('Campaign name and Brand ID are required');
     }
 
     const campaign = await Campaign.create({
       name,
-      description,
-      brand: brandId,
-      status: status || 'Draft',
+      description: description || '',
+      brandId,
       createdBy: req.user._id,
     });
 
@@ -55,6 +63,8 @@ export const createCampaign = async (req, res, next) => {
 // @route   PUT /api/campaigns/:id
 // @access  Private (Editor only)
 export const updateCampaign = async (req, res, next) => {
+  const { name, description } = req.body;
+
   try {
     const campaign = await Campaign.findById(req.params.id);
 
@@ -68,13 +78,11 @@ export const updateCampaign = async (req, res, next) => {
       throw new Error('Not authorized to update this campaign');
     }
 
-    const updated = await Campaign.findByIdAndUpdate(
-      req.params.id,
-      { $set: req.body },
-      { new: true, runValidators: true }
-    );
+    campaign.name = name || campaign.name;
+    campaign.description = description !== undefined ? description : campaign.description;
 
-    res.json(updated);
+    await campaign.save();
+    res.json(campaign);
   } catch (error) {
     next(error);
   }
@@ -96,6 +104,12 @@ export const deleteCampaign = async (req, res, next) => {
       res.status(403);
       throw new Error('Not authorized to delete this campaign');
     }
+
+    // Cascade delete related Designs and Prompts
+    await Promise.all([
+      mongoose.model('Design').deleteMany({ campaignId: campaign._id }),
+      mongoose.model('Prompt').deleteMany({ campaignId: campaign._id })
+    ]);
 
     await Campaign.findByIdAndDelete(req.params.id);
     res.json({ message: 'Campaign deleted successfully' });

@@ -4,6 +4,7 @@ import {
   Upload, ChevronDown, X, Wand2, Eye, Plus, ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { generatePrompt, PLATFORMS, analyzeReferenceImage } from '../utils/mockAi';
+import campaignService from '../services/campaignService';
 
 const DEFAULT_GUIDELINES = `You are an expert graphic designer and creative director.
 
@@ -103,19 +104,23 @@ function RefCard({ refImage, onRemove }) {
 }
 
 /* ── Main PromptBuilder ────────────────────────────── */
-export default function PromptBuilder({ brands, selectedBrandId, setSelectedBrandId, savedPlatform, onSavePrompt }) {
-  const brand = brands.find(b => b.id === selectedBrandId) || brands[0];
-  const [platform, setPlatform] = useState(savedPlatform || PLATFORMS[0]);
+export default function PromptBuilder({ brands, selectedBrandId, setSelectedBrandId, savedPlatform, onSavePrompt, campaignId, resumeDraft }) {
+  const brand = brands.find(b => b.id === selectedBrandId || b._id === selectedBrandId) || brands[0];
+  const [platform, setPlatform] = useState(
+    resumeDraft?.platform
+      ? PLATFORMS.find(p => p.name === resumeDraft.platform) || PLATFORMS[0]
+      : savedPlatform || PLATFORMS[0]
+  );
 
   // Step Wizard state
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(resumeDraft?.currentStep || 1);
 
   // Content
-  const [designTitle, setDesignTitle] = useState('');
-  const [heading,     setHeading]     = useState('');
-  const [subHeading,  setSubHeading]  = useState('');
-  const [body,        setBody]        = useState('');
-  const [cta,         setCta]         = useState('');
+  const [designTitle, setDesignTitle] = useState(resumeDraft?.name || '');
+  const [heading,     setHeading]     = useState(resumeDraft?.heading || '');
+  const [subHeading,  setSubHeading]  = useState(resumeDraft?.subHeading || '');
+  const [body,        setBody]        = useState(resumeDraft?.bodyText || '');
+  const [cta,         setCta]         = useState(resumeDraft?.ctaText || '');
 
   // Design images for this specific design (per-prompt uploads)
   const [designImages, setDesignImages] = useState({ products: [], environments: [], icons: [] });
@@ -163,9 +168,103 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [copied,    setCopied]    = useState(false);
   const [saved,     setSaved]     = useState(false);
 
+  const [activeDraftId, setActiveDraftId] = useState(resumeDraft?._id || null);
   const [generatingImage, setGeneratingImage] = useState(false);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState('');
+  const [generatedImageUrl, setGeneratedImageUrl] = useState(resumeDraft?.imageUrl || resumeDraft?.generatedImage || '');
   const [generationError, setGenerationError] = useState('');
+
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState(
+    resumeDraft?.campaignId?._id || resumeDraft?.campaignId || ''
+  );
+
+  useEffect(() => {
+    const brandId = selectedBrandId || (brand?._id || brand?.id);
+    if (!brandId) return;
+    const fetchCampaigns = async () => {
+      try {
+        const list = await campaignService.getCampaigns(brandId);
+        setCampaigns(list);
+        if (resumeDraft?.campaignId) {
+          setSelectedCampaignId(resumeDraft.campaignId?._id || resumeDraft.campaignId);
+        } else if (campaignId) {
+          setSelectedCampaignId(campaignId);
+        } else if (list.length > 0) {
+          setSelectedCampaignId(list[0]._id);
+        } else {
+          setSelectedCampaignId('');
+        }
+      } catch (err) {
+        console.error('Failed to load campaigns in PromptBuilder:', err);
+      }
+    };
+    fetchCampaigns();
+  }, [selectedBrandId, brand, campaignId, resumeDraft]);
+
+  // Debounced Auto-Save Hook
+  useEffect(() => {
+    const activeBrandId = selectedBrandId || (brand?._id || brand?.id);
+    if (!activeBrandId || !selectedCampaignId) return;
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        const payload = {
+          brandId: activeBrandId,
+          campaignId: selectedCampaignId,
+          name: designTitle || 'Untitled Design',
+          platform: platform?.name || 'Instagram',
+          canvasSize: `${platform?.width || 1080}x${platform?.height || 1080}`,
+          prompt,
+          heading,
+          subHeading,
+          bodyText: body,
+          ctaText: cta,
+          currentStep,
+          isDraft: false,
+          status: 'Completed',
+          generatedImage: generatedImageUrl || '',
+          imageUrl: generatedImageUrl || '',
+          lastOpenedAt: new Date()
+        };
+
+        if (activeDraftId) {
+          await fetch(`/api/designs/${activeDraftId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          const res = await fetch('/api/designs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (res.ok && data._id) {
+            setActiveDraftId(data._id);
+          }
+        }
+      } catch (err) {
+        console.error('Auto-save failed:', err);
+      }
+    }, 2000); // 2 seconds debounce
+
+    return () => clearTimeout(delayDebounce);
+  }, [
+    activeDraftId,
+    selectedBrandId,
+    brand,
+    selectedCampaignId,
+    designTitle,
+    platform,
+    prompt,
+    heading,
+    subHeading,
+    body,
+    cta,
+    currentStep,
+    generatedImageUrl
+  ]);
 
   const handleGenerateImage = async () => {
     setGeneratingImage(true);
@@ -263,6 +362,10 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   };
 
   const handleSave = () => {
+    if (!selectedCampaignId) {
+      alert('Please select or create a Campaign for this brand first.');
+      return;
+    }
     onSavePrompt({
       id: 'p-' + Date.now(),
       title: designTitle || `${brand?.name} — ${platform?.name}`,
@@ -271,6 +374,8 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
       prompt,
       ts: new Date().toLocaleString(),
       brandId: brand?._id || brand?.id,
+      campaignId: selectedCampaignId,
+      imageUrl: generatedImageUrl || '',
       campaign: designTitle || '',
     });
     setSaved(true);
@@ -633,8 +738,21 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                   <div className="form-group">
                     <label className="form-label">Active Brand Profile</label>
                     <select className="select" value={selectedBrandId} onChange={e => setSelectedBrandId(e.target.value)}>
-                      {brands.map(b => <option key={b.id} value={b.id}>{b.name} — {b.industry}</option>)}
+                      {brands.map(b => <option key={b.id || b._id} value={b.id || b._id}>{b.name} — {b.industry}</option>)}
                     </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Campaign Scope</label>
+                    {campaigns.length > 0 ? (
+                      <select className="select" value={selectedCampaignId} onChange={e => setSelectedCampaignId(e.target.value)}>
+                        {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                      </select>
+                    ) : (
+                      <div style={{ fontSize: 12.5, color: 'var(--danger)', fontWeight: 500, padding: '4px 0' }}>
+                        ⚠️ No campaigns found. Please create a campaign for this brand first.
+                      </div>
+                    )}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Output Platform Canvas</label>
@@ -730,31 +848,22 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
             <div className="anim-fade-up flex-col gap-14">
               <Section title="Step 2: Editorial Design Content" accent="#0ea5e9">
                 <div className="flex-col gap-12">
-                  
-                  {/* Campaign selector or creator */}
+
+                  {/* Design Name — always first */}
                   <div className="form-group">
-                    <label className="form-label">Campaign / Design Context</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      <select 
-                        className="select" 
-                        value={brand?.campaigns?.includes(designTitle) ? designTitle : ''} 
-                        onChange={e => {
-                          if (e.target.value) setDesignTitle(e.target.value);
-                        }}
-                      >
-                        <option value="">Select existing campaign...</option>
-                        {(brand?.campaigns || []).map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                      <input 
-                        className="input" 
-                        style={{ fontSize: 13 }} 
-                        value={designTitle} 
-                        onChange={e => setDesignTitle(e.target.value)} 
-                        placeholder="Or enter new campaign..." 
-                      />
-                    </div>
+                    <label className="form-label" style={{ fontWeight: 700 }}>
+                      Design Name <span style={{ color: 'var(--primary)', marginLeft: 2 }}>*</span>
+                    </label>
+                    <input
+                      className="input"
+                      style={{ fontSize: 13 }}
+                      value={designTitle}
+                      onChange={e => setDesignTitle(e.target.value)}
+                      placeholder="e.g. Diwali Sale — Instagram Post, Hiring Banner 2024…"
+                    />
+                    <p style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
+                      Give this design a clear name so you can find it in Saved Designs later.
+                    </p>
                   </div>
 
                   {[

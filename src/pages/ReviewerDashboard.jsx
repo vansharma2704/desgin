@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import brandService from '../services/brandService';
 import campaignService from '../services/campaignService';
-import promptService from '../services/promptService';
+import designService from '../services/designService';
 import {
   Layers, LogOut, CheckCircle, XCircle, Clock,
   Filter, Sparkles, BookMarked, MessageSquare
@@ -28,14 +28,14 @@ export default function ReviewerDashboard() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [brandsData, campaignsData, promptsData] = await Promise.all([
+      const [brandsData, campaignsData, designsData] = await Promise.all([
         brandService.getBrands(),
         campaignService.getCampaigns(),
-        promptService.getPrompts(),
+        designService.getDesigns(),
       ]);
       setBrands(brandsData);
       setCampaigns(campaignsData);
-      setPrompts(promptsData);
+      setPrompts(designsData);
     } catch (err) {
       setError('Failed to fetch data from the server.');
     } finally {
@@ -50,7 +50,7 @@ export default function ReviewerDashboard() {
   const handleApprove = async (id) => {
     setSubmittingReview(true);
     try {
-      const updated = await promptService.updatePrompt(id, { status: 'Approved' });
+      const updated = await designService.updateDesign(id, { status: 'Approved' });
       setPrompts(prev => prev.map(p => p._id === id ? updated : p));
     } catch (err) {
       alert(err.message || 'Approval failed');
@@ -65,7 +65,7 @@ export default function ReviewerDashboard() {
 
     setSubmittingReview(true);
     try {
-      const updated = await promptService.updatePrompt(rejectId, {
+      const updated = await designService.updateDesign(rejectId, {
         status: 'Rejected',
         feedback: feedback,
       });
@@ -80,8 +80,10 @@ export default function ReviewerDashboard() {
   };
 
   const filteredPrompts = prompts.filter(p => {
-    const matchesBrand = selectedBrand === 'all' || p.brand?._id === selectedBrand || p.brand === selectedBrand;
-    const matchesCampaign = selectedCampaign === 'all' || p.campaign === selectedCampaign;
+    const campaign = p.campaignId;
+    const brand = campaign?.brandId;
+    const matchesBrand = selectedBrand === 'all' || brand?._id === selectedBrand || brand === selectedBrand;
+    const matchesCampaign = selectedCampaign === 'all' || campaign?.name === selectedCampaign || campaign?._id === selectedCampaign;
     return matchesBrand && matchesCampaign;
   });
 
@@ -217,8 +219,8 @@ export default function ReviewerDashboard() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                       <div className="flex items-center gap-8">
-                        <span className="badge badge-primary">{p.brand?.name || 'Unknown Brand'}</span>
-                        {p.campaign && <span className="badge badge-gray">{p.campaign}</span>}
+                        <span className="badge badge-primary">{p.campaignId?.brandId?.name || 'Unknown Brand'}</span>
+                        {p.campaignId?.name && <span className="badge badge-gray">{p.campaignId.name}</span>}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

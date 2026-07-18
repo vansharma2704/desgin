@@ -7,6 +7,8 @@ import authRoutes from './routes/authRoutes.js';
 import brandRoutes from './routes/brandRoutes.js';
 import campaignRoutes from './routes/campaignRoutes.js';
 import promptRoutes from './routes/promptRoutes.js';
+import designRoutes from './routes/designRoutes.js';
+import assetRoutes from './routes/assetRoutes.js';
 
 const app = express();
 
@@ -26,6 +28,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/brands', brandRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/prompts', promptRoutes);
+app.use('/api/designs', designRoutes);
+app.use('/api/assets', assetRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);

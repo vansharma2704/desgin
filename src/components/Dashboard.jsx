@@ -9,7 +9,7 @@ function BrandCard({ brand, onClick }) {
     <div
       className="card card-hover anim-fade-up"
       style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 0 }}
-      onClick={() => onClick(brand.id)}
+      onClick={() => onClick(brand._id || brand.id)}
     >
       {/* Color bar */}
       <div
@@ -79,7 +79,15 @@ function BrandCard({ brand, onClick }) {
   );
 }
 
-export default function Dashboard({ brands, onCreateBrand, onOpenBrand }) {
+export default function Dashboard({ brands, onCreateBrand, onOpenBrand, stats }) {
+  const statsList = [
+    { label: 'Total Brands', value: stats?.totalBrands ?? brands.length, icon: <LayoutGrid size={18} color="var(--primary)" /> },
+    { label: 'Total Campaigns', value: stats?.totalCampaigns ?? 0, icon: <Sparkles size={18} color="var(--primary)" /> },
+    { label: 'Total Assets', value: stats?.totalAssets ?? 0, icon: <Layers size={18} color="var(--primary)" /> },
+    { label: 'Generated Designs', value: stats?.totalDesigns ?? 0, icon: <Sparkles size={18} color="var(--primary)" /> },
+    { label: 'Saved Prompts', value: stats?.totalPrompts ?? 0, icon: <TrendingUp size={18} color="var(--primary)" /> },
+  ];
+
   return (
     <div className="page">
       <div className="page-header">
@@ -105,12 +113,8 @@ export default function Dashboard({ brands, onCreateBrand, onOpenBrand }) {
 
       {/* Stats row */}
       {brands.length > 0 && (
-        <div className="grid-3 mb-24 stagger">
-          {[
-            { label: 'Total Brands', value: brands.length, icon: <LayoutGrid size={18} color="var(--primary)" /> },
-            { label: 'Total Assets', value: brands.reduce((s, b) => s + (b.assets?.length || 0), 0), icon: <Layers size={18} color="var(--primary)" /> },
-            { label: 'Prompts Saved', value: 0, icon: <TrendingUp size={18} color="var(--primary)" /> },
-          ].map((s, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }} className="stagger">
+          {statsList.map((s, i) => (
             <div key={i} className="card anim-fade-up flex items-center gap-16" style={{ padding: '16px 20px' }}>
               <div style={{ width: 40, height: 40, borderRadius: 'var(--r-md)', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {s.icon}
@@ -144,7 +148,7 @@ export default function Dashboard({ brands, onCreateBrand, onOpenBrand }) {
             Brand Profiles — {brands.length}
           </div>
           <div className="grid-3 stagger">
-            {brands.map(b => <BrandCard key={b.id} brand={b} onClick={onOpenBrand} />)}
+            {brands.map(b => <BrandCard key={b._id || b.id} brand={b} onClick={onOpenBrand} />)}
           </div>
         </>
       )}

@@ -1,4 +1,6 @@
 import Brand from '../models/Brand.js';
+import mongoose from 'mongoose';
+
 
 // @desc    Get all brands
 // @route   GET /api/brands
@@ -101,6 +103,7 @@ export const updateBrand = async (req, res, next) => {
 // @route   DELETE /api/brands/:id
 // @access  Private (Editor only)
 export const deleteBrand = async (req, res, next) => {
+  const { cascade } = req.query;
   try {
     const brand = await Brand.findById(req.params.id);
 
@@ -115,8 +118,66 @@ export const deleteBrand = async (req, res, next) => {
       throw new Error('Not authorized to delete this brand');
     }
 
+    if (cascade === 'true') {
+      // Find all campaigns belonging to this brand
+      const campaigns = await mongoose.model('Campaign').find({ brandId: brand._id });
+      const campaignIds = campaigns.map(c => c._id);
+
+      // Perform cascade delete across Campaign, Design, Prompt, and Asset models
+      await Promise.all([
+        mongoose.model('Campaign').deleteMany({ brandId: brand._id }),
+        mongoose.model('Design').deleteMany({ campaignId: { $in: campaignIds } }),
+        mongoose.model('Prompt').deleteMany({ campaignId: { $in: campaignIds } }),
+        mongoose.model('Asset').deleteMany({ brandId: brand._id })
+      ]);
+    }
+
     await Brand.findByIdAndDelete(req.params.id);
     res.json({ message: 'Brand removed successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get dashboard statistics
+// @route   GET /api/brands/stats
+// @access  Private
+export const getStats = async (req, res, next) => {
+  try {
+    let query = {};
+    if (req.user.role !== 'Reviewer') {
+      query.createdBy = req.user._id;
+    }
+
+    const brands = await Brand.find(query);
+    const totalBrands = brands.length;
+    const totalAssets = brands.reduce((s, b) => s + (b.assets?.length || 0), 0);
+
+    let campaignQuery = {};
+    if (req.user.role !== 'Reviewer') {
+      campaignQuery.createdBy = req.user._id;
+    }
+    const totalCampaigns = await mongoose.model('Campaign').countDocuments(campaignQuery);
+
+    let designQuery = {};
+    let promptQuery = {};
+    if (req.user.role !== 'Reviewer') {
+      const campaigns = await mongoose.model('Campaign').find({ createdBy: req.user._id });
+      const campaignIds = campaigns.map(c => c._id);
+      designQuery.campaignId = { $in: campaignIds };
+      promptQuery.campaignId = { $in: campaignIds };
+    }
+
+    const totalDesigns = await mongoose.model('Design').countDocuments(designQuery);
+    const totalPrompts = await mongoose.model('Prompt').countDocuments(promptQuery);
+
+    res.json({
+      totalBrands,
+      totalCampaigns,
+      totalAssets,
+      totalDesigns,
+      totalPrompts
+    });
   } catch (error) {
     next(error);
   }

@@ -1,5 +1,5 @@
 import express from 'express';
-import { getBrands, getBrandById, createBrand, updateBrand, deleteBrand } from '../controllers/brandController.js';
+import { getBrands, getBrandById, createBrand, updateBrand, deleteBrand, getStats } from '../controllers/brandController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { authorize } from '../middleware/roleMiddleware.js';
 
@@ -10,6 +10,9 @@ router.use(protect);
 router.route('/')
   .get(getBrands)
   .post(authorize('Editor'), createBrand);
+
+router.route('/stats')
+  .get(getStats);
 
 router.route('/:id')
   .get(getBrandById)

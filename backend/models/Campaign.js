@@ -11,12 +11,7 @@ const campaignSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    status: {
-      type: String,
-      enum: ['Active', 'Draft', 'Archived'],
-      default: 'Draft',
-    },
-    brand: {
+    brandId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Brand',
       required: true,

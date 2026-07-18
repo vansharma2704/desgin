@@ -1,30 +1,30 @@
-const API_URL = '/api/prompts';
+const API_URL = '/api/designs';
 
-export const promptService = {
-  async getPrompts(campaignId = '') {
+export const designService = {
+  async getDesigns(campaignId = '') {
     const url = campaignId ? `${API_URL}?campaignId=${campaignId}` : API_URL;
     const response = await fetch(url);
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to fetch prompts');
+      throw new Error(data.message || 'Failed to fetch designs');
     }
     return data;
   },
 
-  async createPrompt(promptData) {
+  async createDesign(designData) {
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(promptData),
+      body: JSON.stringify(designData),
     });
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to save prompt');
+      throw new Error(data.message || 'Failed to create design');
     }
     return data;
   },
 
-  async updatePrompt(id, updateData) {
+  async updateDesign(id, updateData) {
     const response = await fetch(`${API_URL}/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -32,20 +32,20 @@ export const promptService = {
     });
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to update prompt');
+      throw new Error(data.message || 'Failed to update design');
     }
     return data;
   },
 
-  async deletePrompt(id) {
+  async deleteDesign(id) {
     const response = await fetch(`${API_URL}/${id}`, {
       method: 'DELETE',
     });
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to delete prompt');
+      throw new Error(data.message || 'Failed to delete design');
     }
     return data;
   }
 };
-export default promptService;
+export default designService;

@@ -10,6 +10,15 @@ export const brandService = {
     return data;
   },
 
+  async getStats() {
+    const response = await fetch(`${API_URL}/stats`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch statistics');
+    }
+    return data;
+  },
+
   async getBrandById(id) {
     const response = await fetch(`${API_URL}/${id}`);
     const data = await response.json();

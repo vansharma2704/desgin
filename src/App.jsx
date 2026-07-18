@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   LayoutGrid, Sparkles, MonitorPlay, BookMarked, LogOut, ArrowLeft, Copy, Trash2, Check, Save
 } from 'lucide-react';
@@ -16,14 +16,19 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import ReviewerDashboard from './pages/ReviewerDashboard';
+import CampaignWorkspacePage from './pages/CampaignWorkspacePage';
+import DesignLibraryPage from './pages/DesignLibraryPage';
+import DesignPreviewPage from './pages/DesignPreviewPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import brandService from './services/brandService';
 import promptService from './services/promptService';
+import designService from './services/designService';
 import authService from './services/authService';
 
 function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId }) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const navItems = [
     { key: 'dashboard',  label: 'Dashboard',     icon: <LayoutGrid size={16}/> },
     { key: 'platforms',  label: 'Platforms',     icon: <MonitorPlay size={16}/> },
@@ -47,7 +52,14 @@ function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId })
         <button
           key={item.key}
           className={`nav-item ${view === item.key || (item.key === 'history' && view === 'design-details') ? 'active' : ''}`}
-          onClick={() => setView(item.key)}
+          onClick={() => {
+            setView(item.key);
+            if (item.key === 'history') {
+              navigate('/editor/saved-designs');
+            } else {
+              navigate('/editor/dashboard');
+            }
+          }}
         >
           {item.icon} {item.label}
         </button>
@@ -111,10 +123,10 @@ function DesignCard({ p, onOpen }) {
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <h3 style={{ fontSize: '13.5px', fontWeight: 700, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-1)' }}>
-          {p.campaign || p.title || 'Draft Design'}
+          {p.campaignId?.name || p.campaign || p.title || 'Draft Design'}
         </h3>
         <div style={{ fontSize: '11.5px', color: 'var(--text-3)', marginTop: '2px' }}>
-          {p.brand?.name || p.brandName}
+          {p.campaignId?.brandId?.name || p.brand?.name || p.brandName || 'General Brand'}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
           <span className={`badge ${
@@ -362,15 +374,22 @@ function DesignDetails({ p, onBack, onDelete, onSendForReview }) {
 }
 
 function EditorWorkspace() {
-  const [view, setView]           = useState('dashboard');
+  const { brandId, campaignId } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [view, setView] = useState(
+    location.pathname === '/editor/saved-designs' ? 'history' : 'dashboard'
+  );
   const [brands, setBrands]       = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState(null);
-  const [activeBrandId, setActiveBrandId] = useState(null); // for BrandDetails
   const [activeDesignId, setActiveDesignId] = useState(null); // for DesignDetails
   const [createMode, setCreateMode] = useState(null); // null | 'option1' | 'option2' | 'selector'
   const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [savedPrompts, setSavedPrompts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(null);
+  const [pendingDraftRecovery, setPendingDraftRecovery] = useState(null);
 
   const fetchBrands = async () => {
     try {
@@ -389,16 +408,26 @@ function EditorWorkspace() {
 
   const fetchPrompts = async () => {
     try {
-      const data = await promptService.getPrompts();
+      const data = await designService.getDesigns();
       setSavedPrompts(data);
     } catch (err) {
-      console.error('Failed to fetch prompts:', err);
+      console.error('Failed to fetch designs:', err);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const statsData = await brandService.getStats();
+      setStats(statsData);
+    } catch (err) {
+      console.error('Failed to fetch stats:', err);
     }
   };
 
   useEffect(() => {
     fetchBrands();
     fetchPrompts();
+    fetchStats();
   }, []);
 
   const handleSaveBrand = async (brand) => {
@@ -414,10 +443,10 @@ function EditorWorkspace() {
         saved = await brandService.createBrand(rest);
         setBrands(prev => [...prev, saved]);
         setSelectedBrandId(saved._id);
-        setActiveBrandId(saved._id);
+        navigate(`/editor/brands/${saved._id}`);
       }
       setCreateMode(null);
-      setView('brand-details');
+      fetchStats();
     } catch (err) {
       alert(err.message || 'Failed to save brand');
     }
@@ -427,12 +456,11 @@ function EditorWorkspace() {
     try {
       const saved = await brandService.updateBrand(updated._id, updated);
       setBrands(prev => prev.map(b => b._id === updated._id ? saved : b));
+      fetchStats();
     } catch (err) {
       alert(err.message || 'Failed to update brand');
     }
   };
-
-  const activeBrand = brands.find(b => b._id === activeBrandId || b.id === activeBrandId);
 
   // Routing inside workspace
   const render = () => {
@@ -448,24 +476,37 @@ function EditorWorkspace() {
     if (createMode === 'existing') return <Option1Form onSave={handleSaveBrand} onBack={() => setCreateMode('selector')} />;
     if (createMode === 'scratch')  return <Option2Wizard onSave={handleSaveBrand} onBack={() => setCreateMode('selector')} />;
 
-    if (view === 'brand-details' && activeBrand) {
-      return (
-        <BrandDetails
-          brand={activeBrand}
-          onBack={() => setView('dashboard')}
-          onUpdateBrand={handleUpdateBrand}
-          onDeleteBrand={async (id) => {
-            try {
-              await brandService.deleteBrand(id);
-              setBrands(prev => prev.filter(b => b._id !== id && b.id !== id));
-              setSelectedBrandId(prev => prev === id ? (brands.find(b => b._id !== id)?._id || '') : prev);
-              setView('dashboard');
-            } catch (err) {
-              alert(err.message || 'Failed to delete brand');
-            }
-          }}
-        />
-      );
+    // Dynamic Route hierarchy
+    if (campaignId) {
+      return <CampaignWorkspacePage />;
+    }
+
+    if (brandId) {
+      const activeBrand = brands.find(b => b._id === brandId || b.id === brandId);
+      if (activeBrand) {
+        return (
+          <BrandDetails
+            brand={activeBrand}
+            onBack={() => navigate('/editor/dashboard')}
+            onUpdateBrand={handleUpdateBrand}
+            onDeleteBrand={async (id) => {
+              if (confirm('Delete this brand? This will permanently delete all associated campaigns, prompts, and assets.')) {
+                try {
+                  await brandService.deleteBrand(id + '?cascade=true');
+                  setBrands(prev => prev.filter(b => b._id !== id && b.id !== id));
+                  navigate('/editor/dashboard');
+                  fetchStats();
+                } catch (err) {
+                  alert(err.message || 'Failed to delete brand');
+                }
+              }
+            }}
+            onOpenCampaign={(campId) => {
+              navigate(`/editor/brands/${brandId}/campaigns/${campId}`);
+            }}
+          />
+        );
+      }
     }
 
     if (view === 'design-details') {
@@ -476,16 +517,17 @@ function EditorWorkspace() {
           onBack={() => setView('history')}
           onDelete={async (id) => {
             try {
-              await promptService.deletePrompt(id);
+              await designService.deleteDesign(id);
               setSavedPrompts(prev => prev.filter(x => x._id !== id));
               setView('history');
+              fetchStats();
             } catch (err) {
               alert(err.message || 'Failed to delete design');
             }
           }}
           onSendForReview={async (promptId, reviewerId) => {
             try {
-              const updated = await promptService.updatePrompt(promptId, {
+              const updated = await designService.updateDesign(promptId, {
                 status: 'Pending',
                 reviewer: reviewerId
               });
@@ -504,7 +546,10 @@ function EditorWorkspace() {
           <Dashboard
             brands={brands}
             onCreateBrand={() => setCreateMode('selector')}
-            onOpenBrand={(id) => { setActiveBrandId(id); setView('brand-details'); }}
+            onOpenBrand={(id) => {
+              navigate(`/editor/brands/${id}`);
+            }}
+            stats={stats}
           />
         );
       case 'platforms':
@@ -526,10 +571,19 @@ function EditorWorkspace() {
               try {
                 const saved = await promptService.createPrompt({
                   prompt: p.prompt,
-                  brandId: p.brandId || selectedBrandId,
-                  campaign: p.campaign || p.title || '',
+                  campaignId: p.campaignId,
                 });
-                setSavedPrompts(prev => [saved, ...prev]);
+                await designService.createDesign({
+                  campaignId: p.campaignId,
+                  imageUrl: p.imageUrl || '',
+                  prompt: p.prompt,
+                  platform: p.platform || 'General',
+                  isDraft: false,
+                  status: 'Completed'
+                });
+                // Redirect directly to the campaign page where the design was saved!
+                navigate(`/editor/brands/${p.brandId || selectedBrandId}/campaigns/${p.campaignId}`);
+                fetchStats();
               } catch (err) {
                 alert(err.message || 'Failed to save prompt');
               }
@@ -538,11 +592,11 @@ function EditorWorkspace() {
         );
       case 'history':
         return (
-          <SavedDesigns
-            prompts={savedPrompts}
-            onOpenDesign={(id) => {
-              setActiveDesignId(id);
-              setView('design-details');
+          <DesignLibraryPage
+            onResumeDraft={(draft) => {
+              navigate(`/editor/brands/${draft.brandId?._id || draft.brandId}/campaigns/${draft.campaignId?._id || draft.campaignId}`, {
+                state: { resumeDraft: draft }
+              });
             }}
           />
         );
@@ -602,12 +656,48 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          
+
+          <Route
+            path="/editor/brands/:brandId"
+            element={
+              <ProtectedRoute allowedRoles={['Editor']}>
+                <EditorWorkspace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/editor/brands/:brandId/campaigns/:campaignId"
+            element={
+              <ProtectedRoute allowedRoles={['Editor']}>
+                <EditorWorkspace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/editor/saved-designs"
+            element={
+              <ProtectedRoute allowedRoles={['Editor']}>
+                <EditorWorkspace />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/reviewer/dashboard"
             element={
               <ProtectedRoute allowedRoles={['Reviewer']}>
                 <ReviewerDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/editor/designs/:designId"
+            element={
+              <ProtectedRoute allowedRoles={['Editor']}>
+                <DesignPreviewPage />
               </ProtectedRoute>
             }
           />
