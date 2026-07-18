@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import {
-  LayoutGrid, Sparkles, MonitorPlay, BookMarked, ChevronRight, History,
+  LayoutGrid, Sparkles, MonitorPlay, BookMarked, LogOut, ArrowLeft, Copy, Trash2, Check, Save
 } from 'lucide-react';
 
 import Dashboard    from './components/Dashboard';
@@ -11,33 +12,23 @@ import BrandDetails from './components/BrandDetails';
 import Platforms    from './components/Platforms';
 import PromptBuilder from './components/PromptBuilder';
 
-const SEED_BRANDS = [
-  {
-    id: 'brand-poco',
-    name: 'POCO Athletics',
-    industry: 'Sports & Fitness',
-    description: 'Performance sports equipment brand built for professional cricketers.',
-    colors: ['#FF3B30','#1C1C1E','#FFCC00'],
-    typography: { heading:'Barlow Condensed', body:'Archivo', accent:'Oswald' },
-    style: 'Bold, Athletic, High-Energy',
-    tone: 'Confident, Powerful, Premium',
-    dos: ['Lead with primary red #FF3B30.','Maintain bold typographic hierarchy.'],
-    campaigns: ['Product Launch', 'Summer Campaign', 'Winter Collection', 'Brand Awareness'],
-    assets: [
-      { id:'a1', name:'poco-logo.png',       role:'Logo',               previewUrl:'' },
-      { id:'a2', name:'white-cricket-ball.png', role:'Product Images',  previewUrl:'' },
-      { id:'a3', name:'rainy-stadium.jpg',   role:'Environment Images', previewUrl:'' },
-      { id:'a4', name:'sports-poster-ref.jpg', role:'Style References', previewUrl:'' },
-    ],
-  },
-];
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import ReviewerDashboard from './pages/ReviewerDashboard';
+import ProtectedRoute from './routes/ProtectedRoute';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import brandService from './services/brandService';
+import promptService from './services/promptService';
+import authService from './services/authService';
 
 function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId }) {
+  const { user, logout } = useAuth();
   const navItems = [
-    { key:'dashboard',  label:'Dashboard',     icon:<LayoutGrid size={16}/> },
-    { key:'platforms',  label:'Platforms',     icon:<MonitorPlay size={16}/> },
-    { key:'builder',    label:'Prompt Builder', icon:<Sparkles size={16}/> },
-    { key:'history',    label:'Saved Prompts', icon:<BookMarked size={16}/> },
+    { key: 'dashboard',  label: 'Dashboard',     icon: <LayoutGrid size={16}/> },
+    { key: 'platforms',  label: 'Platforms',     icon: <MonitorPlay size={16}/> },
+    { key: 'builder',    label: 'Prompt Builder', icon: <Sparkles size={16}/> },
+    { key: 'history',    label: 'Saved Designs', icon: <BookMarked size={16}/> },
   ];
 
   return (
@@ -55,7 +46,7 @@ function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId })
       {navItems.map(item => (
         <button
           key={item.key}
-          className={`nav-item ${view === item.key ? 'active' : ''}`}
+          className={`nav-item ${view === item.key || (item.key === 'history' && view === 'design-details') ? 'active' : ''}`}
           onClick={() => setView(item.key)}
         >
           {item.icon} {item.label}
@@ -68,60 +59,105 @@ function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId })
           <label>Active Brand</label>
           <select
             className="select"
-            style={{ fontSize:12, padding:'6px 10px' }}
-            value={selectedBrandId}
+            style={{ fontSize: 12, padding: '6px 10px' }}
+            value={selectedBrandId || ''}
             onChange={e => setSelectedBrandId(e.target.value)}
           >
-            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {brands.map(b => <option key={b._id || b.id} value={b._id || b.id}>{b.name}</option>)}
           </select>
         </div>
       )}
+
+      {/* User Session Info */}
+      <div style={{ marginTop: 'auto', padding: '20px 16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%', background: 'var(--primary-light)',
+            color: 'var(--primary)', fontWeight: 700, fontSize: 13, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', flexShrink: 0
+          }}>
+            {user?.name ? user.name[0].toUpperCase() : 'E'}
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-1)' }}>{user?.name}</div>
+            <span className="badge badge-primary" style={{ fontSize: 9.5, padding: '2px 6px', marginTop: 2, display: 'inline-block' }}>{user?.role}</span>
+          </div>
+        </div>
+        <button onClick={logout} className="btn btn-secondary btn-sm" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <LogOut size={13} /> Sign Out
+        </button>
+      </div>
     </nav>
   );
 }
 
-function PromptHistory({ prompts, onBack }) {
+function DesignCard({ p, onOpen }) {
+  return (
+    <div
+      onClick={onOpen}
+      className="card card-hover anim-scale-in"
+      style={{ cursor: 'pointer', padding: '16px', display: 'flex', gap: '16px', flexDirection: 'row', alignItems: 'center', border: '1.5px solid var(--border)' }}
+    >
+      <div style={{
+        width: '60px', height: '60px', borderRadius: 'var(--r-md)',
+        background: 'var(--surface-3)', border: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0
+      }}>
+        {p.imageUrl ? (
+          <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <span style={{ fontSize: '20px' }}>🖼️</span>
+        )}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <h3 style={{ fontSize: '13.5px', fontWeight: 700, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-1)' }}>
+          {p.campaign || p.title || 'Draft Design'}
+        </h3>
+        <div style={{ fontSize: '11.5px', color: 'var(--text-3)', marginTop: '2px' }}>
+          {p.brand?.name || p.brandName}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+          <span className={`badge ${
+            p.status === 'Approved' ? 'badge-primary' : 
+            p.status === 'Rejected' ? 'badge-danger' : 
+            p.status === 'Pending' ? 'badge-warning' : 'badge-gray'
+          }`} style={{ fontSize: '9px', padding: '2px 6px' }}>
+            {p.status === 'Draft' ? 'Draft' : p.status}
+          </span>
+          <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+            {new Date(p.createdAt).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SavedDesigns({ prompts, onOpenDesign }) {
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Saved Prompts</h1>
-          <p className="page-subtitle mt-4">Prompts saved from the AI Prompt Builder.</p>
+          <h1 className="page-title">Saved Designs</h1>
+          <p className="page-subtitle mt-4">Browse and review all compiled design layouts.</p>
         </div>
       </div>
       {prompts.length === 0 ? (
         <div className="card">
           <div className="empty-state">
             <div className="empty-icon"><BookMarked size={22} /></div>
-            <div className="empty-title">No Saved Prompts</div>
-            <div className="empty-body">Use the AI Prompt Builder and click "Save" to archive prompts here.</div>
+            <div className="empty-title">No Saved Designs</div>
+            <div className="empty-body">Use the AI Prompt Builder and save configured prompts to see them here.</div>
           </div>
         </div>
       ) : (
-        <div className="flex-col gap-16 stagger">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
           {prompts.map(p => (
-            <div key={p.id} className="card anim-fade-up">
-              <div className="flex items-center justify-between mb-12">
-                <div>
-                  <div style={{ fontWeight:700, fontSize:15 }}>{p.title}</div>
-                  <div className="flex items-center gap-8 mt-4">
-                    <span className="badge badge-gray">{p.brandName}</span>
-                    <span className="badge badge-primary">{p.platform}</span>
-                    <span style={{ fontSize:11.5, color:'var(--text-3)' }}>{p.ts}</span>
-                  </div>
-                </div>
-                <button className="btn btn-secondary btn-sm" onClick={() => navigator.clipboard.writeText(p.prompt)}>
-                  Copy
-                </button>
-              </div>
-              <pre style={{
-                fontFamily:'Menlo,Consolas,monospace', fontSize:11.5, lineHeight:1.7,
-                background:'var(--surface-2)', border:'1px solid var(--border)', borderRadius:'var(--r-md)',
-                padding:16, maxHeight:200, overflow:'auto', whiteSpace:'pre-wrap', color:'var(--text-2)',
-              }}>
-                {p.prompt}
-              </pre>
-            </div>
+            <DesignCard
+              key={p._id || p.id}
+              p={p}
+              onOpen={() => onOpenDesign(p._id || p.id)}
+            />
           ))}
         </div>
       )}
@@ -129,36 +165,285 @@ function PromptHistory({ prompts, onBack }) {
   );
 }
 
-export default function App() {
+function DesignDetails({ p, onBack, onDelete, onSendForReview }) {
+  const [copied, setCopied] = useState(false);
+  const [emailQuery, setEmailQuery] = useState('');
+  const [reviewers, setReviewers] = useState([]);
+  const [selectedReviewer, setSelectedReviewer] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!emailQuery.trim()) {
+      setReviewers([]);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const list = await authService.searchReviewers(emailQuery);
+        setReviewers(list);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(delayDebounce);
+  }, [emailQuery]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(p.prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!selectedReviewer) return;
+    setSubmitting(true);
+    try {
+      await onSendForReview(p._id || p.id, selectedReviewer._id);
+      setSelectedReviewer(null);
+      setEmailQuery('');
+    } catch (err) {
+      alert(err.message || 'Failed to submit review request');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!p) {
+    return (
+      <div className="page" style={{ padding: 40 }}>
+        <button className="btn btn-ghost" onClick={onBack}><ArrowLeft size={16} /> Back</button>
+        <div style={{ marginTop: 20 }}>Design not found.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page anim-fade-up">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+        <button className="btn btn-ghost" onClick={onBack} style={{ paddingLeft: 0 }}>
+          <ArrowLeft size={16} /> Back to Designs
+        </button>
+        <button
+          className="btn btn-secondary text-danger"
+          style={{ color: 'var(--danger)', borderColor: 'rgba(220,38,38,0.2)', padding: '8px 16px' }}
+          onClick={() => {
+            if (confirm('Are you sure you want to delete this design?')) {
+              onDelete(p._id || p.id);
+            }
+          }}
+        >
+          <Trash2 size={14} /> Delete Design
+        </button>
+      </div>
+
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h1 className="page-title" style={{ margin: 0 }}>{p.campaign || p.title || 'Untitled Design'}</h1>
+          <span className={`badge ${
+            p.status === 'Approved' ? 'badge-primary' : 
+            p.status === 'Rejected' ? 'badge-danger' : 
+            p.status === 'Pending' ? 'badge-warning' : 'badge-gray'
+          }`}>
+            {p.status === 'Draft' ? 'Draft (Private)' : p.status}
+          </span>
+        </div>
+        <p className="page-subtitle mt-4">Brand: <strong>{p.brand?.name || p.brandName}</strong> · Saved on {new Date(p.createdAt).toLocaleString()}</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '32px', alignItems: 'start' }}>
+        {/* Left Side: Image Preview */}
+        <div className="card" style={{ padding: '20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-2)', marginBottom: '16px' }}>Design Output</div>
+          <div style={{
+            aspectRatio: '1', borderRadius: 'var(--r-lg)', background: 'var(--surface-3)',
+            border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+          }}>
+            {p.imageUrl ? (
+              <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            ) : (
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-3)' }}>
+                <span style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>🖼️</span>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>No image generated yet</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Side: Prompt details & Submit reviews */}
+        <div className="flex-col gap-20">
+          <div className="card" style={{ padding: '24px', border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-2)' }}>Compiled Prompt</div>
+              <button className="btn btn-secondary btn-sm" onClick={handleCopy}>
+                {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+              </button>
+            </div>
+            <pre style={{
+              fontFamily: 'Menlo,Consolas,monospace', fontSize: '12px', lineHeight: '1.7',
+              background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)',
+              padding: '16px', maxHeight: '240px', overflow: 'auto', whiteSpace: 'pre-wrap', color: 'var(--text-2)',
+            }}>
+              {p.prompt}
+            </pre>
+
+            {p.feedback && (
+              <div style={{
+                marginTop: '16px', padding: '12px 16px', background: 'var(--danger-light)',
+                border: '1px solid #fecaca', borderRadius: 'var(--r-md)', color: 'var(--danger)', fontSize: '13px'
+              }}>
+                <strong>Reviewer Feedback:</strong> {p.feedback}
+              </div>
+            )}
+          </div>
+
+          {/* Send for Review Box */}
+          {p.status === 'Draft' && (
+            <div className="card" style={{ padding: '24px', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '8px' }}>Send Design to Reviewer</div>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-3)', marginBottom: '16px' }}>Submit this compiled design configuration to a reviewer for feedback and approval.</p>
+
+              <form onSubmit={handleSend} className="flex-col gap-12">
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Reviewer Email</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Type reviewer email..."
+                    value={emailQuery}
+                    onChange={e => setEmailQuery(e.target.value)}
+                    style={{ fontSize: '13px' }}
+                  />
+                </div>
+
+                {searching && <div style={{ fontSize: '11.5px', color: 'var(--text-3)' }}>Searching reviewers...</div>}
+
+                {!searching && reviewers.length > 0 && (
+                  <div style={{
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-sm)', overflow: 'hidden', maxH: '120px', overflowY: 'auto'
+                  }}>
+                    {reviewers.map(r => (
+                      <div
+                        key={r._id}
+                        onClick={() => { setSelectedReviewer(r); setEmailQuery(r.email); setReviewers([]); }}
+                        style={{
+                          padding: '10px 14px', cursor: 'pointer', fontSize: '13px',
+                          borderBottom: '1px solid var(--border)',
+                          background: selectedReviewer?._id === r._id ? 'var(--primary-light)' : 'transparent',
+                          color: selectedReviewer?._id === r._id ? 'var(--primary)' : 'var(--text-1)'
+                        }}
+                      >
+                        <strong>{r.name}</strong> ({r.email})
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', marginTop: '8px', padding: '10px', fontWeight: 600 }}
+                  disabled={submitting || !selectedReviewer}
+                >
+                  {submitting ? 'Submitting request...' : 'Send to Reviewer'}
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditorWorkspace() {
   const [view, setView]           = useState('dashboard');
-  const [brands, setBrands]       = useState(SEED_BRANDS);
-  const [selectedBrandId, setSelectedBrandId] = useState(SEED_BRANDS[0]?.id || null);
+  const [brands, setBrands]       = useState([]);
+  const [selectedBrandId, setSelectedBrandId] = useState(null);
   const [activeBrandId, setActiveBrandId] = useState(null); // for BrandDetails
+  const [activeDesignId, setActiveDesignId] = useState(null); // for DesignDetails
   const [createMode, setCreateMode] = useState(null); // null | 'option1' | 'option2' | 'selector'
   const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [savedPrompts, setSavedPrompts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSaveBrand = (brand) => {
-    setBrands(prev => {
-      const existing = prev.find(b => b.id === brand.id);
-      if (existing) return prev.map(b => b.id === brand.id ? brand : b);
-      return [...prev, brand];
-    });
-    setSelectedBrandId(brand.id);
-    setActiveBrandId(brand.id);
-    setCreateMode(null);
-    setView('brand-details');
+  const fetchBrands = async () => {
+    try {
+      setLoading(true);
+      const data = await brandService.getBrands();
+      setBrands(data);
+      if (data.length > 0) {
+        setSelectedBrandId(data[0]._id);
+      }
+    } catch (err) {
+      console.error('Failed to fetch brands:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateBrand = (updated) => {
-    setBrands(prev => prev.map(b => b.id === updated.id ? updated : b));
+  const fetchPrompts = async () => {
+    try {
+      const data = await promptService.getPrompts();
+      setSavedPrompts(data);
+    } catch (err) {
+      console.error('Failed to fetch prompts:', err);
+    }
   };
 
-  const activeBrand = brands.find(b => b.id === activeBrandId);
+  useEffect(() => {
+    fetchBrands();
+    fetchPrompts();
+  }, []);
 
-  // Routing
+  const handleSaveBrand = async (brand) => {
+    try {
+      let saved;
+      if (brand.id && !brand.id.startsWith('brand-')) {
+        // Update
+        saved = await brandService.updateBrand(brand.id, brand);
+        setBrands(prev => prev.map(b => b._id === brand.id ? saved : b));
+      } else {
+        // Create new
+        const { id, ...rest } = brand;
+        saved = await brandService.createBrand(rest);
+        setBrands(prev => [...prev, saved]);
+        setSelectedBrandId(saved._id);
+        setActiveBrandId(saved._id);
+      }
+      setCreateMode(null);
+      setView('brand-details');
+    } catch (err) {
+      alert(err.message || 'Failed to save brand');
+    }
+  };
+
+  const handleUpdateBrand = async (updated) => {
+    try {
+      const saved = await brandService.updateBrand(updated._id, updated);
+      setBrands(prev => prev.map(b => b._id === updated._id ? saved : b));
+    } catch (err) {
+      alert(err.message || 'Failed to update brand');
+    }
+  };
+
+  const activeBrand = brands.find(b => b._id === activeBrandId || b.id === activeBrandId);
+
+  // Routing inside workspace
   const render = () => {
-    // Create brand flow
+    if (loading) {
+      return (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', color: 'var(--text-2)' }}>
+          <div style={{ fontWeight: 600 }}>Loading workspace...</div>
+        </div>
+      );
+    }
+
     if (createMode === 'selector') return <CreateBrand onSelect={setCreateMode} onBack={() => setCreateMode(null)} />;
     if (createMode === 'existing') return <Option1Form onSave={handleSaveBrand} onBack={() => setCreateMode('selector')} />;
     if (createMode === 'scratch')  return <Option2Wizard onSave={handleSaveBrand} onBack={() => setCreateMode('selector')} />;
@@ -169,11 +454,45 @@ export default function App() {
           brand={activeBrand}
           onBack={() => setView('dashboard')}
           onUpdateBrand={handleUpdateBrand}
-          onDeleteBrand={(id) => {
-            setBrands(prev => prev.filter(b => b.id !== id));
-            // update selected brand pointer if necessary
-            setSelectedBrandId(prev => prev === id ? (brands.find(b => b.id !== id)?.id || '') : prev);
-            setView('dashboard');
+          onDeleteBrand={async (id) => {
+            try {
+              await brandService.deleteBrand(id);
+              setBrands(prev => prev.filter(b => b._id !== id && b.id !== id));
+              setSelectedBrandId(prev => prev === id ? (brands.find(b => b._id !== id)?._id || '') : prev);
+              setView('dashboard');
+            } catch (err) {
+              alert(err.message || 'Failed to delete brand');
+            }
+          }}
+        />
+      );
+    }
+
+    if (view === 'design-details') {
+      const selectedDesign = savedPrompts.find(p => p._id === activeDesignId);
+      return (
+        <DesignDetails
+          p={selectedDesign}
+          onBack={() => setView('history')}
+          onDelete={async (id) => {
+            try {
+              await promptService.deletePrompt(id);
+              setSavedPrompts(prev => prev.filter(x => x._id !== id));
+              setView('history');
+            } catch (err) {
+              alert(err.message || 'Failed to delete design');
+            }
+          }}
+          onSendForReview={async (promptId, reviewerId) => {
+            try {
+              const updated = await promptService.updatePrompt(promptId, {
+                status: 'Pending',
+                reviewer: reviewerId
+              });
+              setSavedPrompts(prev => prev.map(p => p._id === promptId ? updated : p));
+            } catch (err) {
+              alert(err.message || 'Failed to send for review');
+            }
           }}
         />
       );
@@ -189,7 +508,13 @@ export default function App() {
           />
         );
       case 'platforms':
-        return <Platforms selectedPlatform={selectedPlatform} onSelect={setSelectedPlatform} />;
+        return (
+          <Platforms
+            selectedPlatform={selectedPlatform}
+            onSelect={setSelectedPlatform}
+            onContinue={() => setView('builder')}
+          />
+        );
       case 'builder':
         return (
           <PromptBuilder
@@ -197,11 +522,30 @@ export default function App() {
             selectedBrandId={selectedBrandId}
             setSelectedBrandId={setSelectedBrandId}
             savedPlatform={selectedPlatform}
-            onSavePrompt={p => setSavedPrompts(prev => [p, ...prev])}
+            onSavePrompt={async p => {
+              try {
+                const saved = await promptService.createPrompt({
+                  prompt: p.prompt,
+                  brandId: p.brandId || selectedBrandId,
+                  campaign: p.campaign || p.title || '',
+                });
+                setSavedPrompts(prev => [saved, ...prev]);
+              } catch (err) {
+                alert(err.message || 'Failed to save prompt');
+              }
+            }}
           />
         );
       case 'history':
-        return <PromptHistory prompts={savedPrompts} />;
+        return (
+          <SavedDesigns
+            prompts={savedPrompts}
+            onOpenDesign={(id) => {
+              setActiveDesignId(id);
+              setView('design-details');
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -220,5 +564,57 @@ export default function App() {
         {render()}
       </main>
     </div>
+  );
+}
+
+function DefaultRedirect() {
+  const { isAuthenticated, user, loading } = useAuth();
+
+  if (loading) {
+    return <div style={{ padding: 40 }}>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return user.role === 'Reviewer' ? (
+    <Navigate to="/reviewer/dashboard" replace />
+  ) : (
+    <Navigate to="/editor/dashboard" replace />
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          
+          <Route
+            path="/editor/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['Editor']}>
+                <EditorWorkspace />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/reviewer/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['Reviewer']}>
+                <ReviewerDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="*" element={<DefaultRedirect />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

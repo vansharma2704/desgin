@@ -52,11 +52,24 @@ export default function Option2Wizard({ onSave, onBack }) {
     setPersonality(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
 
   const handleLogoUpload = (e) => {
+    console.log("handleLogoUpload (Wizard) triggered!");
     const f = e.target.files?.[0];
-    if (!f) return;
+    if (!f) {
+      console.log("No file selected in Wizard.");
+      return;
+    }
+    console.log("File selected in Wizard:", f.name, f.size, f.type);
     setLogoFile(f);
-    setLogoUrl(URL.createObjectURL(f));
-    setLogoAction('upload');
+    
+    const reader = new FileReader();
+    reader.onloadstart = () => console.log("FileReader started in Wizard...");
+    reader.onerror = (err) => console.error("FileReader error in Wizard:", err);
+    reader.onloadend = () => {
+      console.log("FileReader finished in Wizard. Base64 length:", reader.result?.length);
+      setLogoUrl(reader.result);
+      setLogoAction('upload');
+    };
+    reader.readAsDataURL(f);
   };
 
   const handleGenerateBrief = () => {

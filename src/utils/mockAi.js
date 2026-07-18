@@ -15,8 +15,9 @@ export function predictAssetRole(fileName) {
 
 /** Extract brand identity from name + industry (simulated) */
 export function extractBrandIdentity(brandName, industry = '') {
-  const ind = industry.toLowerCase();
-  const h = [...brandName].reduce((a,c) => a + c.charCodeAt(0), 0);
+  const ind = (industry || '').toLowerCase();
+  const nameStr = brandName || 'Brand';
+  const h = [...nameStr].reduce((a,c) => a + c.charCodeAt(0), 0);
 
   const presets = [
     { colors: ['#FF3B30','#1C1C1E','#FFCC00'], typography: { heading:'Barlow Condensed', body:'Archivo', accent:'Oswald' }, style:'Bold, Athletic, High-Energy', tone:'Confident, Powerful, Premium' },

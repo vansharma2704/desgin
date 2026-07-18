@@ -7,6 +7,15 @@ import { predictAssetRole } from '../utils/mockAi';
 
 const ASSET_ROLES = ['Logo','Product Images','Environment Images','Packaging','Icons','Style References'];
 
+const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
+
 const ROLE_META = {
   'Logo':               { emoji: '🏷️', color: 'var(--primary)',   desc: 'Official brand logo — used on all designs' },
   'Product Images':     { emoji: '📦', color: '#0ea5e9',           desc: 'Hero products, key items to feature' },
@@ -112,14 +121,23 @@ function RoleUploadZone({ role, onFiles }) {
   const [drag, setDrag] = useState(false);
   const meta = ROLE_META[role];
 
-  const handleFiles = (files) => {
-    const arr = Array.from(files).map(f => ({
-      id: 'a-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-      name: f.name,
-      role,
-      previewUrl: URL.createObjectURL(f),
-    }));
-    onFiles(arr);
+  const handleFiles = async (files) => {
+    try {
+      const arr = await Promise.all(
+        Array.from(files).map(async f => {
+          const base64 = await fileToBase64(f);
+          return {
+            id: 'a-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+            name: f.name,
+            role,
+            previewUrl: base64,
+          };
+        })
+      );
+      onFiles(arr);
+    } catch (err) {
+      console.error("Failed to read assets as base64:", err);
+    }
   };
 
   return (
@@ -210,15 +228,24 @@ export default function BrandDetails({ brand, onBack, onUpdateBrand, onDeleteBra
   }, [brand, onUpdateBrand]);
 
   /* Bulk upload */
-  const handleBulkUpload = (e) => {
+  const handleBulkUpload = async (e) => {
     const files = Array.from(e.target.files || []);
-    const newAssets = files.map(f => ({
-      id: 'a-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-      name: f.name,
-      role: predictAssetRole(f.name),
-      previewUrl: URL.createObjectURL(f),
-    }));
-    addAssets(newAssets);
+    try {
+      const newAssets = await Promise.all(
+        files.map(async f => {
+          const base64 = await fileToBase64(f);
+          return {
+            id: 'a-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+            name: f.name,
+            role: predictAssetRole(f.name),
+            previewUrl: base64,
+          };
+        })
+      );
+      addAssets(newAssets);
+    } catch (err) {
+      console.error("Failed to read bulk assets as base64:", err);
+    }
   };
 
   const logo       = localBrand.assets?.find(a => a.role === 'Logo');

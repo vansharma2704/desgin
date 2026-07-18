@@ -48,23 +48,44 @@ export default function Option1Form({ onSave, onBack }) {
   const [extracting, setExtracting]   = useState(false);
 
   const handleLogoUpload = (e) => {
+    console.log("handleLogoUpload triggered!");
     const f = e.target.files?.[0];
-    if (!f) return;
+    if (!f) {
+      console.log("No file selected.");
+      return;
+    }
+    console.log("File selected:", f.name, f.size, f.type);
     setLogoFile(f);
-    const url = URL.createObjectURL(f);
-    setLogoUrl(url);
-    // Simulate AI extraction
-    setExtracting(true);
-    setTimeout(() => {
-      const identity = extractBrandIdentity(name || f.name, industry);
-      setColors(identity.colors);
-      if (!typographyH) setTypographyH(identity.typography.heading);
-      if (!typographyB) setTypographyB(identity.typography.body);
-      if (!typographyA) setTypographyA(identity.typography.accent);
-      if (!style) setStyle(identity.style);
-      if (!tone)  setTone(identity.tone);
-      setExtracting(false);
-    }, 900);
+    
+    const reader = new FileReader();
+    reader.onloadstart = () => console.log("FileReader started reading file...");
+    reader.onerror = (err) => console.error("FileReader error:", err);
+    reader.onloadend = () => {
+      const base64Url = reader.result;
+      console.log("FileReader finished reading file. Base64 length:", base64Url?.length);
+      setLogoUrl(base64Url);
+      
+      // Simulate AI extraction
+      setExtracting(true);
+      setTimeout(() => {
+        try {
+          console.log("Simulating AI extraction...");
+          const identity = extractBrandIdentity(name || f.name, industry);
+          setColors(identity.colors);
+          if (!typographyH) setTypographyH(identity.typography.heading);
+          if (!typographyB) setTypographyB(identity.typography.body);
+          if (!typographyA) setTypographyA(identity.typography.accent);
+          if (!style) setStyle(identity.style);
+          if (!tone)  setTone(identity.tone);
+          console.log("AI extraction complete.");
+        } catch (error) {
+          console.error("AI Identity Extraction failed:", error);
+        } finally {
+          setExtracting(false);
+        }
+      }, 900);
+    };
+    reader.readAsDataURL(f);
   };
 
   const handleColorChange = (i, v) => {

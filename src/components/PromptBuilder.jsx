@@ -163,6 +163,32 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [copied,    setCopied]    = useState(false);
   const [saved,     setSaved]     = useState(false);
 
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState('');
+  const [generationError, setGenerationError] = useState('');
+
+  const handleGenerateImage = async () => {
+    setGeneratingImage(true);
+    setGenerationError('');
+    setGeneratedImageUrl('');
+    try {
+      const response = await fetch('/api/prompts/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate image');
+      }
+      setGeneratedImageUrl(data.imageUrl);
+    } catch (err) {
+      setGenerationError(err.message || 'An error occurred during image generation.');
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
   /* Build includedAssets: brand logo (always) + brand assets (checked) + design uploads */
   const buildIncludedAssets = useCallback(() => {
     const logo = (brand?.assets || []).find(a => a.role === 'Logo');
@@ -244,6 +270,8 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
       platform: platform?.name,
       prompt,
       ts: new Date().toLocaleString(),
+      brandId: brand?._id || brand?.id,
+      campaign: designTitle || '',
     });
     setSaved(true);
   };
@@ -1073,6 +1101,50 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                     <Check size={14} /> Prompt compiled configuration saved successfully!
                   </div>
                 )}
+
+                {/* AI Image Generator Panel */}
+                <div style={{
+                  margin: '0 20px 20px',
+                  padding: '20px',
+                  border: '1.5px solid var(--border)',
+                  borderRadius: 'var(--r-lg)',
+                  background: 'var(--surface-2)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Sparkles size={16} color="var(--primary)" />
+                    <span style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--text-1)' }}>
+                      AI Image Generator (DALL-E 3)
+                    </span>
+                  </div>
+                  
+                  {generationError && (
+                    <div style={{
+                      padding: '10px 14px',
+                      background: 'var(--danger-light)',
+                      borderRadius: 'var(--r-md)',
+                      fontSize: 12.5, color: 'var(--danger)', fontWeight: 500,
+                      border: '1px solid #fecaca',
+                      marginBottom: 12,
+                    }}>
+                      ⚠️ {generationError}
+                    </div>
+                  )}
+
+                  {generatedImageUrl && (
+                    <div style={{ marginBottom: 12, borderRadius: 'var(--r-md)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      <img src={generatedImageUrl} alt="Generated Asset Preview" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+                    </div>
+                  )}
+
+                  <button
+                    className="btn btn-secondary btn-full"
+                    onClick={handleGenerateImage}
+                    disabled={generatingImage || !prompt}
+                    style={{ background: 'var(--surface)', color: 'var(--primary)', borderColor: 'var(--primary-mid)' }}
+                  >
+                    {generatingImage ? 'Generating Image...' : 'Generate Design Image'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

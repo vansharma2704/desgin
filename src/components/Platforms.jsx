@@ -33,7 +33,7 @@ function PlatformPreview({ p }) {
   );
 }
 
-export default function Platforms({ selectedPlatform, onSelect }) {
+export default function Platforms({ selectedPlatform, onSelect, onContinue }) {
   const [activeCategory, setActiveCategory] = useState('Social Media');
   const [customW, setCustomW] = useState('1080');
   const [customH, setCustomH] = useState('1080');
@@ -63,10 +63,15 @@ export default function Platforms({ selectedPlatform, onSelect }) {
           <p className="page-subtitle mt-4">Choose the canvas size and shape for your design. Used in AI Prompt Builder.</p>
         </div>
         {selectedPlatform && (
-          <div className="card" style={{ padding: '10px 16px', display:'flex', gap:10, alignItems:'center' }}>
-            <span style={{ fontSize:12, color:'var(--text-3)' }}>Selected:</span>
-            <span style={{ fontWeight:700, fontSize:13 }}>{selectedPlatform.name}</span>
-            <span className="badge badge-primary">{selectedPlatform.width}×{selectedPlatform.height} {selectedPlatform.unit}</span>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="card" style={{ padding: '10px 16px', display:'flex', gap:10, alignItems:'center', margin: 0 }}>
+              <span style={{ fontSize:12, color:'var(--text-3)' }}>Selected:</span>
+              <span style={{ fontWeight:700, fontSize:13 }}>{selectedPlatform.name}</span>
+              <span className="badge badge-primary">{selectedPlatform.width}×{selectedPlatform.height} {selectedPlatform.unit}</span>
+            </div>
+            <button className="btn btn-primary" onClick={onContinue} style={{ padding: '10px 20px', fontWeight: 600 }}>
+              Continue →
+            </button>
           </div>
         )}
       </div>
