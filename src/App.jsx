@@ -11,14 +11,18 @@ import Option2Wizard from './components/Option2Wizard';
 import BrandDetails from './components/BrandDetails';
 import Platforms    from './components/Platforms';
 import PromptBuilder from './components/PromptBuilder';
+import NotificationBell from './components/NotificationBell';
 
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import ReviewerDashboard from './pages/ReviewerDashboard';
+import ReviewerDesignReviewPage from './pages/ReviewerDesignReviewPage';
 import CampaignWorkspacePage from './pages/CampaignWorkspacePage';
 import DesignLibraryPage from './pages/DesignLibraryPage';
 import DesignPreviewPage from './pages/DesignPreviewPage';
+import PromptViewPage from './pages/PromptViewPage';
+import PromptEditPage from './pages/PromptEditPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import brandService from './services/brandService';
@@ -39,11 +43,14 @@ function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId })
   return (
     <nav className="sidebar">
       {/* Logo */}
-      <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <Sparkles size={16} color="#fff" />
+      <div className="sidebar-logo" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingRight: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="sidebar-logo-icon">
+            <Sparkles size={16} color="#fff" />
+          </div>
+          <div className="sidebar-logo-text">AI Brand<br/><span>Studio</span></div>
         </div>
-        <div className="sidebar-logo-text">AI Brand<br/><span>Studio</span></div>
+        <NotificationBell role="editor" />
       </div>
 
       {/* Nav */}
@@ -104,6 +111,10 @@ function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId })
 }
 
 function DesignCard({ p, onOpen }) {
+  const campaign = p.campaignId && typeof p.campaignId === 'object' ? p.campaignId : { name: p.campaignName || 'Unknown Campaign' };
+  const brand = p.brandId && typeof p.brandId === 'object' ? p.brandId : (campaign?.brandId && typeof campaign.brandId === 'object' ? campaign.brandId : { name: p.brandName || 'Unknown Brand' });
+  const imageUrl = p.imageUrl || p.generatedImage;
+
   return (
     <div
       onClick={onOpen}
@@ -115,18 +126,18 @@ function DesignCard({ p, onOpen }) {
         background: 'var(--surface-3)', border: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0
       }}>
-        {p.imageUrl ? (
-          <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {imageUrl ? (
+          <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <span style={{ fontSize: '20px' }}>🖼️</span>
         )}
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <h3 style={{ fontSize: '13.5px', fontWeight: 700, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-1)' }}>
-          {p.campaignId?.name || p.campaign || p.title || 'Draft Design'}
+          {p.name || campaign?.name || 'Draft Design'}
         </h3>
         <div style={{ fontSize: '11.5px', color: 'var(--text-3)', marginTop: '2px' }}>
-          {p.campaignId?.brandId?.name || p.brand?.name || p.brandName || 'General Brand'}
+          {brand?.name || 'Unknown Brand'}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
           <span className={`badge ${
@@ -694,10 +705,37 @@ export default function App() {
           />
 
           <Route
+            path="/reviewer/design/:designId"
+            element={
+              <ProtectedRoute allowedRoles={['Reviewer']}>
+                <ReviewerDesignReviewPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/editor/designs/:designId"
             element={
               <ProtectedRoute allowedRoles={['Editor']}>
                 <DesignPreviewPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/prompt/view"
+            element={
+              <ProtectedRoute allowedRoles={['Editor']}>
+                <PromptViewPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/prompt/edit"
+            element={
+              <ProtectedRoute allowedRoles={['Editor']}>
+                <PromptEditPage />
               </ProtectedRoute>
             }
           />

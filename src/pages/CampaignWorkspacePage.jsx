@@ -9,6 +9,7 @@ import promptService from '../services/promptService';
 import brandService from '../services/brandService';
 import authService from '../services/authService';
 import PromptBuilder from '../components/PromptBuilder';
+import { addNotification } from '../utils/notifications';
 
 export default function CampaignWorkspacePage() {
   const { brandId, campaignId } = useParams();
@@ -149,9 +150,14 @@ export default function CampaignWorkspacePage() {
     setSubmittingReview(true);
     try {
       const updated = await designService.updateDesign(activeDesignId, {
-        status: 'Pending',
+        status: 'Pending Review',
         reviewer: selectedReviewer._id
       });
+      addNotification(
+        'reviewer',
+        `New design "${updated.name || 'Untitled Design'}" submitted for review.`,
+        `/reviewer/design/${activeDesignId}`
+      );
       setDesigns(prev => prev.map(d => d._id === activeDesignId ? updated : d));
       setSelectedReviewer(null);
       setEmailQuery('');
@@ -193,6 +199,29 @@ export default function CampaignWorkspacePage() {
       <div className="page" style={{ padding: 40 }}>
         <button className="btn btn-ghost" onClick={() => navigate(`/editor/brands/${brandId}`)}><ArrowLeft size={16} /> Back</button>
         <div style={{ marginTop: 20 }}>Campaign not found.</div>
+      </div>
+    );
+  }
+
+  if (workspaceView === 'builder') {
+    return (
+      <div className="anim-fade-up" style={{ padding: '0px' }}>
+        <div style={{ padding: '24px 48px', maxWidth: 1700, margin: '0 auto' }}>
+          <button className="btn btn-ghost" onClick={() => { setWorkspaceView('list'); navigate(location.pathname, { replace: true, state: {} }); }} style={{ paddingLeft: 0, marginBottom: 0 }}>
+            <ArrowLeft size={16} /> Back to Campaign
+          </button>
+        </div>
+        <PromptBuilder
+          brands={brands}
+          selectedBrandId={activeBrandId}
+          setSelectedBrandId={setActiveBrandId}
+          campaignId={campaignId}
+          resumeDraft={location.state?.resumeDraft}
+          savedPlatform={{ name: 'Instagram', width: 1080, height: 1080, unit: 'px' }}
+          onSavePrompt={async (p) => {
+            await handleAutoSaveGenerated(p.prompt, p.imageUrl);
+          }}
+        />
       </div>
     );
   }
@@ -279,27 +308,7 @@ export default function CampaignWorkspacePage() {
         </div>
       )}
 
-      {/* AI Prompt Builder Workspace View */}
-      {workspaceView === 'builder' && (
-        <div className="anim-fade-up">
-          <div style={{ marginBottom: 20 }}>
-            <button className="btn btn-ghost" onClick={() => setWorkspaceView('list')} style={{ paddingLeft: 0 }}>
-              <ArrowLeft size={16} /> Back to Campaign
-            </button>
-          </div>
-          <PromptBuilder
-            brands={brands}
-            selectedBrandId={activeBrandId}
-            setSelectedBrandId={setActiveBrandId}
-            campaignId={campaignId}
-            resumeDraft={location.state?.resumeDraft}
-            savedPlatform={{ name: 'Instagram', width: 1080, height: 1080, unit: 'px' }}
-            onSavePrompt={async (p) => {
-              await handleAutoSaveGenerated(p.prompt, p.imageUrl);
-            }}
-          />
-        </div>
-      )}
+      {/* AI Prompt Builder Workspace View is now rendered as a top-level wrapper above the main return */}
 
       {/* Detailed Card View Page */}
       {workspaceView === 'design-details' && selectedDesign && (

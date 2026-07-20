@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDesigns, createDesign, updateDesign, deleteDesign, migrateDraftsToCompleted } from '../controllers/designController.js';
+import { getDesigns, createDesign, updateDesign, deleteDesign, migrateDraftsToCompleted, claimMyDesigns } from '../controllers/designController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -8,6 +8,9 @@ const router = express.Router();
 router.post('/migrate-drafts', migrateDraftsToCompleted);
 
 router.use(protect);
+
+// Claim designs (backfill createdBy for existing designs)
+router.post('/claim-mine', claimMyDesigns);
 
 router.route('/')
   .get(getDesigns)
@@ -18,3 +21,4 @@ router.route('/:id')
   .delete(deleteDesign);
 
 export default router;
+

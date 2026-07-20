@@ -70,8 +70,8 @@ function DesignCard({ design, onPreview, onEdit, onDownload, onDelete, onDuplica
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const menuRef = useRef(null);
-  const campaign = design.campaignId;
-  const brand = campaign?.brandId || design.brandId;
+  const campaign = design.campaignId && typeof design.campaignId === 'object' ? design.campaignId : { name: design.campaignName || 'Unknown Campaign' };
+  const brand = design.brandId && typeof design.brandId === 'object' ? design.brandId : (campaign?.brandId && typeof campaign.brandId === 'object' ? campaign.brandId : { name: design.brandName || 'Unknown Brand' });
   const imageUrl = design.imageUrl || design.generatedImage;
 
   // Close menu on outside click
@@ -412,6 +412,12 @@ export default function DesignLibraryPage({ onResumeDraft }) {
 
   useEffect(() => {
     loadData();
+    // Silently backfill createdBy for existing designs (runs once per session)
+    if (!sessionStorage.getItem('createdBy_claimed')) {
+      designService.claimMyDesigns()
+        .then(() => sessionStorage.setItem('createdBy_claimed', '1'))
+        .catch(() => {}); // silent — non-critical
+    }
     try {
       const cached = JSON.parse(localStorage.getItem('design_lib_filters') || '{}');
       if (cached.brand) setSelectedBrand(cached.brand);
@@ -651,8 +657,8 @@ export default function DesignLibraryPage({ onResumeDraft }) {
             </thead>
             <tbody>
               {paginated.map(design => {
-                const campaign = design.campaignId;
-                const brand = campaign?.brandId || design.brandId;
+                 const campaign = design.campaignId && typeof design.campaignId === 'object' ? design.campaignId : { name: design.campaignName || 'Unknown Campaign' };
+                 const brand = design.brandId && typeof design.brandId === 'object' ? design.brandId : (campaign?.brandId && typeof campaign.brandId === 'object' ? campaign.brandId : { name: design.brandName || 'Unknown Brand' });
                 const imageUrl = design.imageUrl || design.generatedImage;
                 return (
                   <tr key={design._id} style={{ borderBottom: '1px solid var(--border)' }}

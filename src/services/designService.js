@@ -46,6 +46,14 @@ export const designService = {
       throw new Error(data.message || 'Failed to delete design');
     }
     return data;
-  }
+  },
+
+  // One-time backfill: sets createdBy on all designs that lack it
+  async claimMyDesigns() {
+    const response = await fetch(`${API_URL}/claim-mine`, { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Claim failed');
+    return data;
+  },
 };
 export default designService;

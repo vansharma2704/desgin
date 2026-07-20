@@ -9,6 +9,7 @@ import campaignRoutes from './routes/campaignRoutes.js';
 import promptRoutes from './routes/promptRoutes.js';
 import designRoutes from './routes/designRoutes.js';
 import assetRoutes from './routes/assetRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/campaigns', campaignRoutes);
 app.use('/api/prompts', promptRoutes);
 app.use('/api/designs', designRoutes);
 app.use('/api/assets', assetRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);

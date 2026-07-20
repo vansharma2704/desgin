@@ -19,6 +19,28 @@ export const migrateDraftsToCompleted = async (req, res, next) => {
   }
 };
 
+// @desc    Claim all designs with no createdBy for the current editor
+// @route   POST /api/designs/claim-mine
+// @access  Private (Editor)
+export const claimMyDesigns = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+    const result = await Design.updateMany(
+      { createdBy: null },
+      { $set: { createdBy: req.user._id } }
+    );
+    res.json({
+      message: `Claimed ${result.modifiedCount} designs for ${req.user.name}.`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 // @desc    Get all designs
 // @route   GET /api/designs
 // @access  Private
@@ -27,8 +49,7 @@ export const getDesigns = async (req, res, next) => {
   try {
     const query = {};
     if (req.user.role === 'Reviewer') {
-      query.reviewer = req.user._id;
-      query.status = { $ne: 'Draft' };
+      query.status = { $in: ['Submitted For Review', 'Pending', 'Pending Review', 'Approved', 'Rejected', 'Changes Requested', 'Archived'] };
     } else if (campaignId) {
       query.campaignId = campaignId;
     }
@@ -39,6 +60,8 @@ export const getDesigns = async (req, res, next) => {
         populate: { path: 'brandId', select: 'name logoUrl colors assets' }
       })
       .populate('brandId', 'name logoUrl colors assets')
+      .populate('reviewer', 'name email')
+      .populate('createdBy', 'name email')
       .sort({ updatedAt: -1 });
 
     res.json(designs);
@@ -76,8 +99,16 @@ export const createDesign = async (req, res, next) => {
     const design = await Design.create({
       ...req.body,
       brandId: activeBrandId,
+      createdBy: req.user?._id || null,
     });
-    res.status(201).json(design);
+    const populated = await Design.findById(design._id)
+      .populate({
+        path: 'campaignId',
+        populate: { path: 'brandId', select: 'name logoUrl colors assets' }
+      })
+      .populate('brandId', 'name logoUrl colors assets')
+      .populate('createdBy', 'name email');
+    res.status(201).json(populated);
   } catch (error) {
     next(error);
   }
@@ -96,7 +127,7 @@ export const updateDesign = async (req, res, next) => {
 
     // Sanitize payload — strip fields whose value is literally "undefined"
     // or that are ObjectId ref fields with a non-ObjectId string value
-    const objIdFields = ['brandId', 'campaignId', 'reviewer'];
+    const objIdFields = ['brandId', 'campaignId', 'reviewer', 'createdBy'];
     const payload = { ...req.body };
     for (const field of objIdFields) {
       if (payload[field] !== undefined) {
@@ -107,11 +138,24 @@ export const updateDesign = async (req, res, next) => {
       }
     }
 
+    // Backfill createdBy for existing designs that lack it
+    // Only set if design has no creator and the caller is an Editor
+    if (!design.createdBy && req.user && req.user.role === 'Editor') {
+      payload.createdBy = req.user._id;
+    }
+
     const updated = await Design.findByIdAndUpdate(
       req.params.id,
       { $set: payload },
       { new: true, runValidators: true }
-    );
+    )
+    .populate({
+      path: 'campaignId',
+      populate: { path: 'brandId', select: 'name logoUrl colors assets' }
+    })
+    .populate('brandId', 'name logoUrl colors assets')
+    .populate('reviewer', 'name email')
+    .populate('createdBy', 'name email');
     res.json(updated);
   } catch (error) {
     next(error);

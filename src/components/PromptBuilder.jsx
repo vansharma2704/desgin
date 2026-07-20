@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Sparkles, Copy, Edit2, Check, Save, RefreshCw,
   Upload, ChevronDown, X, Wand2, Eye, Plus, ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { generatePrompt, PLATFORMS, analyzeReferenceImage } from '../utils/mockAi';
 import campaignService from '../services/campaignService';
+import aiService from '../services/aiService';
+import authService from '../services/authService';
+import designService from '../services/designService';
+import { addNotification } from '../utils/notifications';
 
 const DEFAULT_GUIDELINES = `You are an expert graphic designer and creative director.
 
@@ -106,6 +111,8 @@ function RefCard({ refImage, onRemove }) {
 /* ── Main PromptBuilder ────────────────────────────── */
 export default function PromptBuilder({ brands, selectedBrandId, setSelectedBrandId, savedPlatform, onSavePrompt, campaignId, resumeDraft }) {
   const brand = brands.find(b => b.id === selectedBrandId || b._id === selectedBrandId) || brands[0];
+  const navigate = useNavigate();
+  const [isCustomEdited, setIsCustomEdited] = useState(resumeDraft?.isCustomEdited || false);
   const [platform, setPlatform] = useState(
     resumeDraft?.platform
       ? PLATFORMS.find(p => p.name === resumeDraft.platform) || PLATFORMS[0]
@@ -169,6 +176,8 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [saved,     setSaved]     = useState(false);
 
   const [activeDraftId, setActiveDraftId] = useState(resumeDraft?._id || null);
+  // Track the saved status so auto-save never overwrites a review-lifecycle status
+  const [activeDraftStatus, setActiveDraftStatus] = useState(resumeDraft?.status || 'Draft');
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState(resumeDraft?.imageUrl || resumeDraft?.generatedImage || '');
   const [generationError, setGenerationError] = useState('');
@@ -177,7 +186,101 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [selectedCampaignId, setSelectedCampaignId] = useState(
     resumeDraft?.campaignId?._id || resumeDraft?.campaignId || ''
   );
+  // Reviewer search and submission states
+  const [emailQuery, setEmailQuery] = useState('');
+  const [reviewers, setReviewers] = useState([]);
+  const [selectedReviewer, setSelectedReviewer] = useState(null);
+  const [searchingReviewers, setSearchingReviewers] = useState(false);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState(false);
 
+  // Redesign modals & connection states
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [openaiKeyInput, setOpenaiKeyInput] = useState('');
+  const [isApiKeyConnected, setIsApiKeyConnected] = useState(false);
+
+  useEffect(() => {
+    if (!emailQuery.trim()) {
+      setReviewers([]);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setSearchingReviewers(true);
+      try {
+        const list = await authService.searchReviewers(emailQuery);
+        setReviewers(list);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setSearchingReviewers(false);
+      }
+    }, 400);
+    return () => clearTimeout(delayDebounce);
+  }, [emailQuery]);
+
+  const handleSendForReview = async (e) => {
+    e.preventDefault();
+    if (!selectedReviewer) return;
+    
+    let currentDesignId = activeDraftId;
+    
+    // Auto-save/create draft design first if not yet created
+    if (!currentDesignId) {
+      const activeBrandId = selectedBrandId || (brand?._id || brand?.id);
+      if (!activeBrandId || !selectedCampaignId) {
+        alert('Please ensure you have selected a brand and campaign first.');
+        return;
+      }
+      try {
+        const payload = {
+          brandId: activeBrandId,
+          campaignId: selectedCampaignId,
+          name: designTitle || 'Untitled Design',
+          platform: platform?.name || 'Instagram',
+          canvasSize: `${platform?.width || 1080}x${platform?.height || 1080}`,
+          prompt,
+          heading,
+          subHeading,
+          bodyText: body,
+          ctaText: cta,
+          currentStep,
+          isDraft: true,
+          status: 'Draft',
+          generatedImage: generatedImageUrl || '',
+          imageUrl: generatedImageUrl || '',
+        };
+        const savedDesign = await designService.createDesign(payload);
+        currentDesignId = savedDesign._id;
+        setActiveDraftId(currentDesignId);
+      } catch (err) {
+        alert('Failed to save design before sending for review: ' + err.message);
+        return;
+      }
+    }
+
+    setSubmittingReview(true);
+    setReviewSuccess(false);
+    try {
+      await designService.updateDesign(currentDesignId, {
+        status: 'Pending Review',
+        reviewer: selectedReviewer._id
+      });
+      addNotification(
+        'reviewer',
+        `New design "${designTitle || 'Untitled Design'}" submitted for review.`,
+        `/reviewer/design/${currentDesignId}`
+      );
+      setReviewSuccess(true);
+      setActiveDraftStatus('Pending Review'); // guard auto-save from reverting status
+      setSelectedReviewer(null);
+      setEmailQuery('');
+    } catch (err) {
+      alert(err.message || 'Failed to submit review request');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
   useEffect(() => {
     const brandId = selectedBrandId || (brand?._id || brand?.id);
     if (!brandId) return;
@@ -221,7 +324,11 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
           ctaText: cta,
           currentStep,
           isDraft: false,
-          status: 'Completed',
+          // Only mark Completed if the design is still in a pre-review state.
+          // Never overwrite statuses that belong to the review lifecycle.
+          ...(!['Pending', 'Pending Review', 'Submitted For Review', 'Approved', 'Rejected', 'Changes Requested', 'Archived'].includes(activeDraftStatus) && {
+            status: 'Completed',
+          }),
           generatedImage: generatedImageUrl || '',
           imageUrl: generatedImageUrl || '',
           lastOpenedAt: new Date()
@@ -242,6 +349,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
           const data = await res.json();
           if (res.ok && data._id) {
             setActiveDraftId(data._id);
+            setActiveDraftStatus(data.status || 'Completed');
           }
         }
       } catch (err) {
@@ -270,7 +378,26 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
     setGeneratingImage(true);
     setGenerationError('');
     setGeneratedImageUrl('');
+    const activeBrandId = brand?._id || brand?.id;
+
     try {
+      if (activeBrandId && selectedCampaignId) {
+        // Use style-memory prompt builder and pipeline on backend
+        const res = await aiService.generateDesignPipeline({
+          brandId: activeBrandId,
+          campaignId: selectedCampaignId,
+          userPrompt: heading || prompt,
+          platform: platform?.name || 'Instagram',
+          canvasSize: `${platform?.width || 1080}x${platform?.height || 1080}`,
+          designId: activeDraftId || undefined
+        });
+        if (res.success && res.design?.imageUrl) {
+          setGeneratedImageUrl(res.design.imageUrl);
+          return;
+        }
+      }
+
+      // Fallback
       const response = await fetch('/api/prompts/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -301,7 +428,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   }, [brand, assetChecked, designImages]);
 
   const compile = useCallback(() => {
-    if (!brand) return;
+    if (!brand || isCustomEdited) return;
     const text = generatePrompt({
       brand, platform,
       designTitle, heading, subHeading, body, cta,
@@ -314,9 +441,38 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
     });
     setPrompt(text);
     setSaved(false);
-  }, [brand, platform, designTitle, heading, subHeading, body, cta, refImages, buildIncludedAssets, guidelines, colorMode, customColors, designImages, refSettings]);
+  }, [brand, platform, designTitle, heading, subHeading, body, cta, refImages, buildIncludedAssets, guidelines, colorMode, customColors, designImages, refSettings, isCustomEdited]);
 
-  useEffect(() => { compile(); }, [compile]);
+  useEffect(() => {
+    // If returning from edit with a custom prompt, set it here
+    if (resumeDraft?.prompt && resumeDraft?.isCustomEdited) {
+      setPrompt(resumeDraft.prompt);
+      setIsCustomEdited(true);
+    } else {
+      compile();
+    }
+  }, [compile, resumeDraft]);
+
+  const navigateToPromptRoute = (route) => {
+    const activeBrandId = brand?._id || brand?.id;
+    navigate(route, {
+      state: {
+        prompt,
+        brandId: activeBrandId,
+        selectedCampaignId,
+        platform,
+        designTitle,
+        heading,
+        subHeading,
+        body,
+        cta,
+        currentStep,
+        activeDraftId,
+        generatedImageUrl,
+        isCustomEdited
+      }
+    });
+  };
 
   const handleCopy = () => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -633,9 +789,32 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
       });
     });
 
-    Promise.all(promises).then(completedRefs => {
+    // 1. Read files as base64 for backend Style Memory Analysis
+    const base64Promises = files.map(file => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all([Promise.all(promises), Promise.all(base64Promises)]).then(async ([completedRefs, base64s]) => {
       setRefImages(prev => [...prev, ...completedRefs]);
       setRefAnalyzing(false);
+
+      const activeBrandId = brand?._id || brand?.id;
+      const validBase64s = base64s.filter(Boolean);
+      
+      if (validBase64s.length > 0 && activeBrandId && selectedCampaignId) {
+        try {
+          // Analyze once, store structured Style Memory in Campaign
+          await aiService.analyzeStyle(validBase64s, activeBrandId, selectedCampaignId);
+          console.log("Style memory successfully stored on backend.");
+        } catch (err) {
+          console.error("Backend style analysis failed:", err);
+        }
+      }
     });
   };
 
@@ -667,7 +846,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   ];
 
   return (
-    <div className="page" style={{ maxWidth: 960, margin: '0 auto' }}>
+    <div className="page" style={{ maxWidth: currentStep === 5 ? 1700 : 960, width: currentStep === 5 ? '90%' : '100%', margin: '0 auto', transition: 'all 0.2s ease-in-out' }}>
       {/* Title */}
       <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
@@ -679,7 +858,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
             }}>
               <Sparkles size={18} color="#fff" />
             </div>
-            <h1 className="page-title">AI Prompt Builder</h1>
+            <h1 className="page-title">Generate Design</h1>
           </div>
           <p className="page-subtitle mt-4">
             Follow the guided steps to assemble and compile your professional design specifications.
@@ -1120,140 +1299,266 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
 
           {/* STEP 5: Final Compiled Prompt */}
           {currentStep === 5 && (
-            <div className="anim-fade-up flex-col gap-14">
-              <div style={{
-                border: '2px solid var(--primary-mid)',
-                borderRadius: 'var(--r-xl)',
-                background: 'var(--surface)',
-                boxShadow: '0 0 0 4px var(--primary-light), var(--shadow-md)',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  padding: '16px 20px',
-                  borderBottom: '1px solid var(--border)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: 'linear-gradient(135deg, var(--primary-light), #f0f0fe)',
-                }}>
-                  <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div className="flex items-center gap-8">
-                        <Sparkles size={16} style={{ color: 'var(--primary)' }} />
-                        <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--primary)' }}>
-                          Final Compiled Design Spec
-                        </span>
+            <div className="anim-fade-up" style={{ display: 'grid', gridTemplateColumns: '7.2fr 2.8fr', gap: '24px', alignItems: 'stretch', width: '100%' }}>
+              
+              {/* LEFT COLUMN: Large Preview */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="card" style={{ padding: '24px', borderRadius: '24px', border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', height: '100%', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+                  
+                  {/* Large 16:9 Design Preview Card */}
+                  <div style={{
+                    width: '100%',
+                    height: '540px',
+                    aspectRatio: '16/9',
+                    maxHeight: '560px',
+                    borderRadius: '20px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface-3)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    boxSizing: 'border-box'
+                  }}>
+                    {generatedImageUrl ? (
+                      <>
+                        <img src={generatedImageUrl} alt="Generated Design" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        {/* Floating overlay buttons */}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '20px',
+                          left: '20px',
+                          right: '20px',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          gap: '12px',
+                          background: 'rgba(255, 255, 255, 0.85)',
+                          backdropFilter: 'blur(8px)',
+                          padding: '10px 16px',
+                          borderRadius: '30px',
+                          border: '1px solid rgba(0,0,0,0.06)',
+                          boxShadow: 'var(--shadow-md)'
+                        }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => navigateToPromptRoute('/prompt/edit')} style={{ color: 'var(--text-1)' }}>✏️ Edit</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => navigateToPromptRoute('/prompt/view')} style={{ color: 'var(--text-1)' }}>👁️ View Prompt</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => {
+                            const a = document.createElement('a');
+                            a.href = generatedImageUrl;
+                            a.download = `${designTitle || 'design'}.png`;
+                            a.click();
+                          }} style={{ color: 'var(--text-1)' }}>⬇️ Download</button>
+                          <button className="btn btn-secondary btn-sm" onClick={handleGenerateImage} style={{ color: 'var(--text-1)' }}>🔄 Regenerate</button>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                        {/* Beautiful empty illustration */}
+                        <div style={{
+                          width: '64px',
+                          height: '64px',
+                          borderRadius: '20px',
+                          background: 'linear-gradient(135deg, rgba(108, 76, 241, 0.1), rgba(108, 76, 241, 0.05))',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#6C4CF1',
+                          boxShadow: '0 8px 16px rgba(108, 76, 241, 0.06)'
+                        }}>
+                          <Sparkles size={30} />
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: '20px', color: 'var(--text-1)' }}>Your design will appear here</div>
+                        <div style={{ fontSize: '14px', color: 'var(--text-3)', maxWidth: '420px', lineHeight: '1.6' }}>
+                          Generate your first AI-powered design using your uploaded assets, brand guidelines, and prompt.
+                        </div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
-                        Copy or save this text-only description for designer or engine use
-                      </div>
+                    )}
+                  </div>
+
+                  {/* Status Chips */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(108, 76, 241, 0.06)', color: '#6C4CF1', padding: '8px 14px', borderRadius: '30px', fontSize: '12.5px', fontWeight: 600 }}>
+                      ✓ Brand
                     </div>
-                    <div className="flex gap-6">
-                      <button className="icon-btn" title={isEditing ? 'Preview Mode' : 'Edit Mode'} onClick={() => setIsEditing(!isEditing)}>
-                        {isEditing ? <Eye size={14} /> : <Edit2 size={14} />}
-                      </button>
-                      <button className="icon-btn" title="Refresh/Recompile" onClick={compile}>
-                        <RefreshCw size={14} />
-                      </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(108, 76, 241, 0.06)', color: '#6C4CF1', padding: '8px 14px', borderRadius: '30px', fontSize: '12.5px', fontWeight: 600 }}>
+                      ✓ Assets
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(108, 76, 241, 0.06)', color: '#6C4CF1', padding: '8px 14px', borderRadius: '30px', fontSize: '12.5px', fontWeight: 600 }}>
+                      ✓ Guidelines
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(108, 76, 241, 0.06)', color: '#6C4CF1', padding: '8px 14px', borderRadius: '30px', fontSize: '12.5px', fontWeight: 600 }}>
+                      ✓ Prompt
+                    </div>
+                  </div>
+
+                  {/* Action Area */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
+                    <button
+                      className="btn btn-primary btn-lg"
+                      onClick={handleGenerateImage}
+                      disabled={true}
+                      style={{
+                        width: '100%',
+                        padding: '18px',
+                        borderRadius: '16px',
+                        fontWeight: 700,
+                        background: 'var(--surface-3)',
+                        borderColor: 'transparent',
+                        color: 'var(--text-3)',
+                        cursor: 'not-allowed',
+                        boxShadow: 'none',
+                        fontSize: '15px'
+                      }}
+                    >
+                      Generate Design
+                    </button>
+                    <span style={{ fontSize: '13px', color: 'var(--text-3)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      🔒 OpenAI API Required
+                    </span>
+                    
+                    <button
+                      className="btn btn-link"
+                      onClick={() => navigateToPromptRoute('/prompt/view')}
+                      style={{ fontSize: '14px', color: '#6C4CF1', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'none', marginTop: 4 }}
+                    >
+                      View Final Prompt
+                    </button>
                   </div>
                 </div>
 
-                {/* Prompt Viewport */}
-                <div style={{ padding: '0 20px 0' }}>
-                  {isEditing ? (
-                    <textarea
-                      value={prompt}
-                      onChange={e => setPrompt(e.target.value)}
-                      style={{
-                        width: '100%', minHeight: 380, resize: 'vertical',
-                        fontFamily: 'Menlo,Consolas,monospace', fontSize: 12.5, lineHeight: 1.7,
-                        border: 'none', outline: 'none', background: 'transparent',
-                        padding: '20px 0', color: 'var(--text-1)',
-                      }}
-                    />
-                  ) : (
-                    <pre style={{
-                      fontFamily: 'Menlo,Consolas,monospace', fontSize: 12.5, lineHeight: 1.7,
-                      color: 'var(--text-1)', background: 'transparent',
-                      whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                      maxHeight: 440, overflowY: 'auto',
-                      padding: '20px 0', margin: 0,
-                    }}>
-                      {prompt || 'Input data in wizard steps to compile design specifications.'}
-                    </pre>
-                  )}
-                </div>
-
-                {/* CTA action buttons */}
-                <div style={{ padding: '16px 20px 20px', display: 'flex', gap: 10 }}>
-                  <button className="btn btn-primary btn-lg btn-full" onClick={handleCopy} style={{ flex: 1 }}>
-                    {copied ? <><Check size={16} /> Copied!</> : <><Copy size={16} /> Copy Design Prompt</>}
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-lg"
-                    onClick={handleSave}
-                    title="Save Prompt Specs to History"
-                    style={{ padding: '12px 18px' }}
-                  >
-                    {saved ? <Check size={16} style={{ color: 'var(--success)' }} /> : <Save size={16} />}
-                  </button>
-                </div>
-
-                {saved && (
+                {generationError && (
                   <div style={{
-                    margin: '0 20px 16px',
-                    padding: '10px 14px',
-                    background: 'var(--success-light)',
-                    borderRadius: 'var(--r-md)',
-                    fontSize: 13, color: 'var(--success)', fontWeight: 500,
-                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '12px 16px',
+                    background: 'var(--danger-light)',
+                    borderRadius: '12px',
+                    fontSize: '13px', color: 'var(--danger)', fontWeight: 500,
+                    border: '1px solid #fecaca',
                   }}>
-                    <Check size={14} /> Prompt compiled configuration saved successfully!
+                    ⚠️ {generationError}
                   </div>
                 )}
+              </div>
 
-                {/* AI Image Generator Panel */}
-                <div style={{
-                  margin: '0 20px 20px',
-                  padding: '20px',
-                  border: '1.5px solid var(--border)',
-                  borderRadius: 'var(--r-lg)',
-                  background: 'var(--surface-2)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <Sparkles size={16} color="var(--primary)" />
-                    <span style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--text-1)' }}>
-                      AI Image Generator (DALL-E 3)
-                    </span>
+              {/* RIGHT COLUMN: Sidebar (THREE CARDS ONLY) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', justifyContent: 'space-between', height: '100%', boxSizing: 'border-box' }}>
+
+                {/* Card 1: Project Summary */}
+                <div className="card" style={{ padding: '24px', borderRadius: '24px', border: '1.5px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, justifyContent: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-1)', marginBottom: 4 }}>Project Summary</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '13.5px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-3)' }}>Brand</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{brand?.name || '—'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-3)' }}>Campaign</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px', textAlign: 'right' }}>
+                        {campaigns.find(c => c._id === selectedCampaignId)?.name || designTitle || '—'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-3)' }}>Platform</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{platform?.name || '—'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-3)' }}>Assets Uploaded</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{totalAssets}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-3)' }}>Prompt Status</span>
+                      <span style={{ fontWeight: 600, color: 'var(--success)' }}>{prompt ? 'Ready' : 'Pending'}</span>
+                    </div>
                   </div>
-                  
-                  {generationError && (
-                    <div style={{
-                      padding: '10px 14px',
-                      background: 'var(--danger-light)',
-                      borderRadius: 'var(--r-md)',
-                      fontSize: 12.5, color: 'var(--danger)', fontWeight: 500,
-                      border: '1px solid #fecaca',
-                      marginBottom: 12,
-                    }}>
-                      ⚠️ {generationError}
-                    </div>
-                  )}
+                </div>
 
-                  {generatedImageUrl && (
-                    <div style={{ marginBottom: 12, borderRadius: 'var(--r-md)', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                      <img src={generatedImageUrl} alt="Generated Asset Preview" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
-                    </div>
-                  )}
-
+                {/* Card 2: Quick Actions */}
+                <div className="card" style={{ padding: '24px', borderRadius: '24px', border: '1.5px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, justifyContent: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-1)', marginBottom: 4 }}>Quick Actions</div>
                   <button
                     className="btn btn-secondary btn-full"
-                    onClick={handleGenerateImage}
-                    disabled={generatingImage || !prompt}
-                    style={{ background: 'var(--surface)', color: 'var(--primary)', borderColor: 'var(--primary-mid)' }}
+                    onClick={() => navigateToPromptRoute('/prompt/view')}
+                    style={{ textAlign: 'left', padding: '10px 14px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 550, color: 'var(--text-1)' }}
                   >
-                    {generatingImage ? 'Generating Image...' : 'Generate Design Image'}
+                    👁️ View Final Prompt
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-full"
+                    onClick={() => navigateToPromptRoute('/prompt/edit')}
+                    style={{ textAlign: 'left', padding: '10px 14px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 550, color: 'var(--text-1)' }}
+                  >
+                    ✏️ Edit Final Prompt
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-full"
+                    onClick={() => setCurrentStep(4)}
+                    style={{ textAlign: 'left', padding: '10px 14px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 550, color: 'var(--text-1)' }}
+                  >
+                    🖼️ Edit Assets
                   </button>
                 </div>
+
+                {/* Card 3: Reviewer Panel */}
+                <div className="card" style={{ padding: '24px', borderRadius: '24px', border: '1.5px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, justifyContent: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-1)' }}>Reviewer</div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: '0 0 4px 0', lineHeight: '1.5' }}>Submit this compiled design configuration to a reviewer for feedback and approval.</p>
+
+                  <form onSubmit={handleSendForReview} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="Type reviewer email..."
+                      value={emailQuery}
+                      onChange={e => setEmailQuery(e.target.value)}
+                      style={{ fontSize: '13.5px', padding: '12px 14px', width: '100%', boxSizing: 'border-box' }}
+                    />
+
+                    {searchingReviewers && <div style={{ fontSize: '11.5px', color: 'var(--text-3)' }}>Searching reviewers...</div>}
+
+                    {!searchingReviewers && reviewers.length > 0 && (
+                      <div style={{
+                        background: 'var(--surface)', border: '1px solid var(--border)',
+                        borderRadius: 'var(--r-sm)', overflow: 'hidden', maxHeight: '120px', overflowY: 'auto'
+                      }}>
+                        {reviewers.map(r => (
+                          <div
+                            key={r._id}
+                            onClick={() => { setSelectedReviewer(r); setEmailQuery(r.email); setReviewers([]); }}
+                            style={{
+                              padding: '10px 14px', cursor: 'pointer', fontSize: '13px',
+                              borderBottom: '1px solid var(--border)',
+                              background: selectedReviewer?._id === r._id ? 'var(--primary-light)' : 'transparent',
+                              color: selectedReviewer?._id === r._id ? 'var(--primary)' : 'var(--text-1)'
+                            }}
+                          >
+                            <strong>{r.name}</strong> ({r.email})
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      style={{ width: '100%', padding: '10px', fontWeight: 600 }}
+                      disabled={submittingReview || !selectedReviewer}
+                    >
+                      {submittingReview ? 'Submitting request...' : 'Send to Reviewer'}
+                    </button>
+                  </form>
+                  {reviewSuccess && (
+                    <div style={{
+                      padding: '10px 14px',
+                      background: 'var(--success-light)',
+                      borderRadius: 'var(--r-md)',
+                      fontSize: 12.5, color: 'var(--success)', fontWeight: 500,
+                      marginTop: 10
+                    }}>
+                      Sent for review successfully!
+                    </div>
+                  )}
+                </div>
+
               </div>
             </div>
           )}
@@ -1284,6 +1589,141 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
           </div>
 
         </div>
+
+        {/* Modal Overlay for Viewing/Editing Prompt */}
+        {showPromptModal && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '20px'
+          }}>
+            <div style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: '24px', padding: '24px', width: '100%', maxWidth: '640px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '16px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-1)' }}>
+                  {isEditing ? 'Edit Design Prompt' : 'Compiled Design Prompt'}
+                </h3>
+                <button
+                  onClick={() => setShowPromptModal(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div>
+                {isEditing ? (
+                  <textarea
+                    value={prompt}
+                    onChange={e => setPrompt(e.target.value)}
+                    style={{
+                      width: '100%', minHeight: '300px', resize: 'vertical',
+                      fontFamily: 'Menlo,Consolas,monospace', fontSize: '12px', lineHeight: '1.6',
+                      border: '1px solid var(--border)', borderRadius: '12px',
+                      padding: '16px', color: 'var(--text-1)', background: 'var(--surface-2)',
+                      outline: 'none'
+                    }}
+                  />
+                ) : (
+                  <pre style={{
+                    fontFamily: 'Menlo,Consolas,monospace', fontSize: '12px', lineHeight: '1.6',
+                    color: 'var(--text-2)', background: 'var(--surface-2)',
+                    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    maxHeight: '350px', overflowY: 'auto',
+                    padding: '16px', margin: 0, borderRadius: '12px',
+                    border: '1px solid var(--border)'
+                  }}>
+                    {prompt || 'No prompt compiled yet.'}
+                  </pre>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button className="btn btn-secondary" onClick={() => setIsEditing(!isEditing)}>
+                  {isEditing ? 'View Mode' : 'Edit Mode'}
+                </button>
+                <button className="btn btn-secondary" onClick={handleCopy}>
+                  {copied ? 'Copied!' : 'Copy Prompt'}
+                </button>
+                <button className="btn btn-primary" onClick={() => { handleSave(); setShowPromptModal(false); }}>
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Overlay for OpenAI Connection */}
+        {showConnectModal && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '20px'
+          }}>
+            <div style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: '24px', padding: '28px', width: '100%', maxWidth: '440px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '20px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-1)' }}>
+                  Connect OpenAI API
+                </h3>
+                <button
+                  onClick={() => setShowConnectModal(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: '1.5' }}>
+                Provide your OpenAI API key to enable live DALL-E 3 image generations directly in the workspace.
+                Alternatively, click <strong>"Simulate Connection"</strong> to test the layout.
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-3)' }}>API KEY</label>
+                <input
+                  type="password"
+                  className="input"
+                  placeholder="sk-..."
+                  value={openaiKeyInput}
+                  onChange={e => setOpenaiKeyInput(e.target.value)}
+                  style={{ padding: '12px 14px', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setIsApiKeyConnected(true);
+                    setShowConnectModal(false);
+                  }}
+                  style={{ width: '100%', padding: '12px', fontWeight: 700 }}
+                >
+                  Connect API Key
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setIsApiKeyConnected(true);
+                    setShowConnectModal(false);
+                  }}
+                  style={{ width: '100%', padding: '12px', fontWeight: 600 }}
+                >
+                  Simulate Connection
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

@@ -74,7 +74,7 @@ const designSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Draft', 'Generating', 'Completed', 'Submitted For Review', 'Approved', 'Rejected', 'Archived'],
+      enum: ['Draft', 'Generating', 'Completed', 'Submitted For Review', 'Pending', 'Pending Review', 'Approved', 'Rejected', 'Changes Requested', 'Archived'],
       default: 'Draft',
     },
     currentStep: {
@@ -93,6 +93,15 @@ const designSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    feedback: {
+      type: String,
+      default: '',
     },
   },
   {
