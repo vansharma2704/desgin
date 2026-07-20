@@ -70,109 +70,296 @@ generate logo`;
 /** mock analyze uploaded reference and return simulated feature extraction */
 export function analyzeReferenceImage(fileName) {
   const seed = fileName.toLowerCase();
+  const nameHash = [...fileName].reduce((acc, char) => acc + char.charCodeAt(0), 0);
   
-  let colors = ['#F5F5F5', '#111111', '#E2E8F0']; // Clean minimalist gallery theme by default
-  
-  if (seed.includes('gold') || seed.includes('warm') || seed.includes('luxury')) {
-    colors = ['#1E1B4B', '#F59E0B', '#FDF2F8']; // Indigo & Gold
-  } else if (seed.includes('retro') || seed.includes('sunset')) {
-    colors = ['#7C2D12', '#F97316', '#FEF3C7']; // Warm orange
-  } else if (seed.includes('green') || seed.includes('forest')) {
-    colors = ['#064E3B', '#10B981', '#ECFDF5']; // Emerald
+  // 1. Color Palette Selection
+  let colors = ['#F8FAFC', '#0F172A', '#64748B']; // slate cool tech default
+  if (seed.includes('gold') || seed.includes('warm') || seed.includes('luxury') || seed.includes('yellow')) {
+    colors = ['#1E1B4B', '#F59E0B', '#FEF3C7'];
+  } else if (seed.includes('retro') || seed.includes('sunset') || seed.includes('orange')) {
+    colors = ['#7C2D12', '#F97316', '#FEF3C7'];
+  } else if (seed.includes('green') || seed.includes('forest') || seed.includes('nature') || seed.includes('organic')) {
+    colors = ['#064E3B', '#10B981', '#ECFDF5'];
   } else if (seed.includes('neon') || seed.includes('cyber') || seed.includes('dark')) {
-    colors = ['#09090B', '#EC4899', '#3B82F6']; // Cyber dark
-  } else if (seed.includes('red') || seed.includes('sport') || seed.includes('poco')) {
-    colors = ['#18181B', '#DC2626', '#F4F4F5']; // Crimson
+    colors = ['#09090B', '#EC4899', '#3B82F6'];
+  } else if (seed.includes('red') || seed.includes('sport') || seed.includes('poco') || seed.includes('crimson')) {
+    colors = ['#18181B', '#DC2626', '#F4F4F5'];
+  } else if (seed.includes('blue') || seed.includes('ocean') || seed.includes('water') || seed.includes('sky')) {
+    colors = ['#0F172A', '#0284C7', '#E0F2FE'];
+  } else if (seed.includes('purple') || seed.includes('pink') || seed.includes('lavender') || seed.includes('cosmetic')) {
+    colors = ['#2E1065', '#D946EF', '#FDF4FF'];
+  } else if (seed.includes('pastel') || seed.includes('soft') || seed.includes('light')) {
+    colors = ['#FFFBEB', '#F472B6', '#E0F2FE'];
   }
 
-  const isGreen = seed.includes('green') || seed.includes('nike') || seed.includes('dunk') || seed.includes('jordan');
-  const isPuma = seed.includes('puma') || seed.includes('ferrari') || seed.includes('pumeee');
-  const isStadium = seed.includes('stadium') || seed.includes('field') || seed.includes('sport') || seed.includes('poco');
-  const isMinimal = seed.includes('minimal') || seed.includes('clean') || seed.includes('white');
-
-  // Exact Layout mapping
+  // 2. Layout construction
   let layout = 'Centered geometric showcase placing a heavy double-ruled shadow frame around the focal object';
-  if (isGreen) {
-    layout = 'Minimalist poster layout featuring a prominent dark green central frame housing the sneakers with stylized brand text overlays';
-  } else if (isPuma) {
-    layout = 'Clean asymmetrical split-frame composition with absolute borders dividing text from layout visuals';
-  } else if (isStadium) {
-    layout = 'Dynamic athletic action alignment with angled graphic panels and high-energy borders';
-  } else if (isMinimal) {
+  if (seed.includes('minimal') || seed.includes('clean') || seed.includes('white')) {
     layout = 'Ultra-clean gallery display showcasing a thin black photo frame border on an off-white background';
+  } else if (seed.includes('sport') || seed.includes('stadium') || seed.includes('run') || seed.includes('action')) {
+    layout = 'Dynamic athletic action alignment with angled graphic panels and high-energy borders';
+  } else if (seed.includes('fashion') || seed.includes('magazine') || seed.includes('editorial') || seed.includes('puma')) {
+    layout = 'Clean asymmetrical split-frame composition with absolute borders dividing text from layout visuals';
+  } else if (seed.includes('green') || seed.includes('nike') || seed.includes('dunk') || seed.includes('jordan')) {
+    layout = 'Minimalist poster layout featuring a prominent dark green central frame housing the sneakers with stylized brand text overlays';
+  } else if (seed.includes('grid') || seed.includes('collage') || seed.includes('split')) {
+    layout = 'Structured multi-panel grid system with hairline dividers separating hero product and copy blocks';
   }
 
-  // Exact Typography mapping
+  // 3. Typography construction
   let typography = 'Barlow Condensed (Headings) & Archivo (Body Copy) paired with clean geometric labels';
-  if (isGreen) {
-    typography = 'Heavy geometric block sans-serif letterings layered behind the product frame, with clean classic details';
-  } else if (isPuma) {
+  if (seed.includes('luxury') || seed.includes('elegant') || seed.includes('editorial') || seed.includes('fashion') || seed.includes('cosmetic')) {
     typography = 'Classy editorial serif (headings) paired with clean geometric sans-serif for secondary details';
+  } else if (seed.includes('sport') || seed.includes('bold') || seed.includes('action') || seed.includes('nike')) {
+    typography = 'Heavy geometric block sans-serif letterings layered behind the product frame, with clean classic details';
+  } else if (seed.includes('cyber') || seed.includes('neon') || seed.includes('tech')) {
+    typography = 'Technical monospaced font family (Share Tech Mono) paired with Space Grotesk';
   }
 
-  // Exact Style mapping
+  // 4. Style construction
   let style = 'Refined Artistic Gallery / Premium Editorial Minimal';
-  if (isGreen) {
+  if (seed.includes('retro') || seed.includes('vintage') || seed.includes('classic')) {
     style = 'Bold Retro Sports Editorial / High Contrast Grid Poster';
-  } else if (isPuma) {
+  } else if (seed.includes('luxury') || seed.includes('premium') || seed.includes('cosmetic') || seed.includes('perfume')) {
     style = 'Modern Luxury Lifestyle / Editorial Fashion Spread';
-  } else if (isStadium) {
+  } else if (seed.includes('sport') || seed.includes('athletic') || seed.includes('stadium')) {
     style = 'High-Energy Cinematic / Athletic Advertising Poster';
+  } else if (seed.includes('cyber') || seed.includes('neon') || seed.includes('dark')) {
+    style = 'Industrial Cyberpunk / High Contrast Technical Style';
   }
 
-  // Exact Background mapping
+  // 5. Background construction
   let background = 'Clean, soft-lit museum gallery wall or plaster studio background with subtle ambient drop shadows';
-  if (isGreen) {
+  if (seed.includes('green') || seed.includes('nike') || seed.includes('dunk')) {
     background = 'Off-white textured paper mock wall background with minor pins/tapes, casting light natural shadows';
-  } else if (isPuma) {
+  } else if (seed.includes('dark') || seed.includes('cyber') || seed.includes('neon')) {
     background = 'Deep charcoal industrial plaster wall casting strong geometric diagonal light beam shadows';
-  } else if (isStadium) {
+  } else if (seed.includes('stadium') || seed.includes('field') || seed.includes('sport')) {
     background = 'Atmospheric wet stadium ground with moody stadium floodlights and fog';
+  } else if (seed.includes('nature') || seed.includes('forest') || seed.includes('outdoor')) {
+    background = 'Dappled sunlight passing through forest canopy onto a natural earth or stone pedestal';
   }
 
-  // Exact Asset Placement mapping
-  let assetPlacement = 'The hero product (shoe/item) is placed exactly inside the central photo frame, with logo and caption placed clean outside or overlapping the frame border';
-  if (isGreen) {
-    assetPlacement = 'The shoes are placed diagonally overlapping a large stylized text logo frame, with smaller captions offset in the corners';
-  } else if (isPuma) {
+  // 6. Asset Placement construction
+  let assetPlacement = 'The hero product is placed exactly inside the central photo frame, with logo and caption placed clean outside or overlapping the frame border';
+  if (seed.includes('diagonal') || seed.includes('dynamic') || seed.includes('sport')) {
+    assetPlacement = 'The product is placed diagonally overlapping a large stylized text logo frame, with smaller captions offset in the corners';
+  } else if (seed.includes('asymmetric') || seed.includes('split') || seed.includes('editorial')) {
     assetPlacement = 'Hero product placed diagonally inside a left-offset photo canvas panel, with logo placed top-left and copy blocks right-aligned';
   }
 
-  // Extracted Objects
-  const objects = seed.includes('green') || seed.includes('nike') || seed.includes('dunk')
-    ? 'Sneaker products, Black wooden photo frame border, Green plant pot backdrop decoration, Orange/brown baseball cap accessories'
-    : 'Hero product, central photo frame border, floating shadow blocks';
+  // 7. Extract objects/elements from file name
+  const detectedObjects = [];
+  if (seed.includes('shoe') || seed.includes('sneaker') || seed.includes('nike') || seed.includes('dunk') || seed.includes('puma') || seed.includes('jordan')) {
+    detectedObjects.push('premium athletic sneaker product');
+  } else if (seed.includes('bottle') || seed.includes('drink') || seed.includes('beverage') || seed.includes('can')) {
+    detectedObjects.push('beverage container mockups');
+  } else if (seed.includes('watch') || seed.includes('perfume') || seed.includes('cosmetic') || seed.includes('makeup')) {
+    detectedObjects.push('luxury fashion accessory items');
+  } else {
+    detectedObjects.push('central hero product focus');
+  }
 
-  // 10 Visual design profile fields
-  const composition = seed.includes('green') || seed.includes('nike') || seed.includes('dunk')
-    ? 'Layered poster setup with sneakers placed in midground, overlapping background typography'
-    : 'Centered frame layout with strong visual depth and layering of elements';
-    
-  const lighting = seed.includes('green') || seed.includes('nike') || seed.includes('dunk')
-    ? 'Soft directional window light with natural contrast shadows'
-    : 'Soft studio diffusion lighting casting gentle shadows';
+  if (seed.includes('plant') || seed.includes('flower') || seed.includes('leaf') || seed.includes('green')) {
+    detectedObjects.push('foliage elements / plant pot decoration');
+  }
+  if (seed.includes('shadow') || seed.includes('light') || seed.includes('sun')) {
+    detectedObjects.push('ambient window frame light shadows');
+  } else {
+    detectedObjects.push('floating geometric block shadows');
+  }
+  
+  if (detectedObjects.length < 3) {
+    detectedObjects.push('minimal decorative pedestal base');
+  }
 
-  const materials = seed.includes('green') || seed.includes('nike') || seed.includes('dunk')
-    ? 'Off-white textured card stock, smooth leather, and matte painted frames'
-    : 'Premium matte paper, glass panels, and painted clean wood tabletop';
+  const objects = detectedObjects.join(', ');
 
-  const mood = seed.includes('green') || seed.includes('nike') || seed.includes('dunk')
+  // 8. Other properties
+  const compositions = [
+    'Layered poster setup with sneakers/products placed in midground, overlapping background typography',
+    'High contrast asymmetrical split-screen with sharp layering and deep midground perspective',
+    'Centered frame layout with strong visual depth and layering of elements',
+    'Golden spiral layout drawing focal path to the primary foreground frame details'
+  ];
+  const composition = compositions[nameHash % compositions.length];
+
+  const lightings = [
+    'Soft directional window light with natural contrast shadows',
+    'Dramatic overhead spotlighting with high contrast and deep industrial shadows',
+    'Soft studio diffusion lighting casting gentle shadows',
+    'Subtle side key light highlighting edge contours and textured leather highlights'
+  ];
+  const lighting = lightings[nameHash % lightings.length];
+
+  const materialsList = [
+    'Off-white textured card stock, smooth leather, and matte painted frames',
+    'Polished concrete, dark textured plaster, and reflective glass surfaces',
+    'Premium matte paper, glass panels, and painted clean wood tabletop',
+    'Sleek industrial metal, brushed aluminum frame, and plastic canvas overlays'
+  ];
+  const materials = materialsList[nameHash % materialsList.length];
+
+  const mood = seed.includes('sport') || seed.includes('action')
     ? 'Energetic, vintage retro, and highly creative'
     : 'Sophisticated, clean, editorial, and timeless';
 
-  return {
-    colors,
-    layout,
-    composition,
-    typography,
-    background,
-    lighting,
-    objects,
-    style,
-    materials,
-    mood
+  // Build top 8 color hex codes with percentages based on colors list
+  const hex_codes = colors.map((c, idx) => {
+    return {
+      hex: c,
+      percentage: idx === 0 ? 55 : idx === 1 ? 30 : 15
+    };
+  });
+  // Add some fallback neutrals to fill top 8
+  const extraNeutrals = ['#FFFFFF', '#F1F5F9', '#E2E8F0', '#CBD5E1', '#94A3B8'];
+  while (hex_codes.length < 8) {
+    const nextNeutral = extraNeutrals[hex_codes.length - colors.length] || '#000000';
+    hex_codes.push({
+      hex: nextNeutral,
+      percentage: Math.max(2, Math.round((100 - hex_codes.reduce((acc, x) => acc + x.percentage, 0)) / 2))
+    });
+  }
+
+  const detectedIndustry = seed.includes('green') || seed.includes('nike') || seed.includes('dunk') || seed.includes('jordan') || seed.includes('sport')
+    ? 'Sports/Athletic'
+    : seed.includes('medical') || seed.includes('healthcare') || seed.includes('doctor') || seed.includes('clinic') || seed.includes('hospital')
+      ? 'Healthcare/Medical'
+      : 'Corporate/General';
+
+  const shapes = [];
+  if (seed.includes('wave') || seed.includes('curve')) shapes.push('Wave', 'Curved overlays');
+  if (seed.includes('circle') || seed.includes('badge')) shapes.push('Circle', 'Circular discount badge');
+  if (seed.includes('square') || seed.includes('card')) shapes.push('Rounded Rectangle');
+
+  const icons = [];
+  if (detectedIndustry === 'Healthcare/Medical') {
+    icons.push('Medical stethoscope', 'Heartbeat pulse line', 'Cross badge');
+  } else if (detectedIndustry === 'Sports/Athletic') {
+    icons.push('Running athlete silhouette', 'Shoe icon', 'Thunder bolt');
+  } else {
+    icons.push('Design grid indicator', 'Social handles');
+  }
+
+  const result = {
+    industry: { value: detectedIndustry, confidence: 95, reason: "Inferred from template content and style rules" },
+    design_type: { value: seed.includes('flyer') ? 'Flyer' : 'Social Post', confidence: 92, reason: "Identified visual format size and proportions" },
+    platform: { value: seed.includes('instagram') ? 'Instagram' : 'unknown', confidence: 85, reason: "Canvas dimensions match platform specs" },
+    
+    color_palette: {
+      hex_codes: hex_codes.map((hc, idx) => ({
+        hex: hc.hex,
+        rgb: idx === 0 ? "rgb(248, 250, 252)" : idx === 1 ? "rgb(15, 23, 42)" : "rgb(100, 116, 139)",
+        percentage: hc.percentage,
+        role: idx === 0 ? "Background Color" : idx === 1 ? "Text Color" : "Accent Color",
+        brightness: idx === 0 ? "light" : "dark",
+        saturation: "muted"
+      })),
+      confidence: 96,
+      reason: "Extracted dominant hex color codes with percentages"
+    },
+
+    typography: {
+      heading_style: { value: typography.includes('heavy') ? 'Bold, uppercase, heavy letterings' : 'Clean, medium-weight, centered', confidence: 94, reason: "Heading text features detected" },
+      subheading_style: { value: 'Medium contrast uppercase subheaders', confidence: 90, reason: "Text style analysis" },
+      body_style: { value: 'Regular sans-serif, medium height, left-aligned', confidence: 94, reason: "Body copy details" },
+      font_family_guess: { value: seed.includes('serif') ? 'Playfair Display' : 'unknown', confidence: 88, reason: "Serif/sans font properties matching" },
+      font_category: { value: seed.includes('serif') ? 'Serif' : 'Sans-Serif', confidence: 94, reason: "Font glyph characteristics" },
+      text_alignment: { value: seed.includes('center') ? 'center' : 'left', confidence: 96, reason: "Horizontal text alignments" },
+      text_hierarchy: { value: 'High contrast between large headings and compact captions', confidence: 92, reason: "Font size relationships" },
+      estimated_font_pairing: { value: seed.includes('serif') ? 'Playfair Display (Headings) / Lora (Body)' : 'Barlow Condensed (Headings) / Archivo (Body)', confidence: 90, reason: "Recommended pairing based on style classification" },
+      max_characters_guess: { value: 'Headings ~35 chars, Body ~120 chars', confidence: 85, reason: "Character density calculation" }
+    },
+
+    layout: {
+      structure: { value: layout, confidence: 95, reason: "Visual grid and boundaries match layout templates" },
+      alignment: { value: seed.includes('center') ? 'center' : 'left', confidence: 95, reason: "Visual component distribution check" },
+      grid: { value: seed.includes('grid') ? 'three-column' : 'none', confidence: 92, reason: "Grid detection checks" },
+      margins: { value: 'Wide uniform spacing margins around edges', confidence: 90, reason: "Margins safety check" },
+      padding: { value: 'Comfortable padding inside components', confidence: 90, reason: "Card padding spaces" },
+      safe_area: { value: 'Text fully fits inside safe zone boundary lines', confidence: 95, reason: "Safe boundaries check" },
+      whitespace: { value: 'Moderate comfortable whitespace and margins', confidence: 94, reason: "Whitespace density check" },
+      sections: { value: ['Header', 'Hero Creative Section', 'Service Cards / Feature Grid', 'Footer branding', 'CTA Section'], confidence: 95, reason: "Detected elements based on functional layout blocks" },
+      component_positioning: { value: "Relative stacking of elements", confidence: 90, reason: "Relative coordinates check" }
+    },
+
+    composition: {
+      visual_flow: { value: 'Path from top logo down through the diagonal hero into benefits', confidence: 92, reason: "Linear eye flow path" },
+      focal_point: { value: objects.split(', ')[0] || 'Hero product asset', confidence: 95, reason: "Primary contrast visual weight element" },
+      balance: { value: 'asymmetric balanced layout', confidence: 92, reason: "Visual weight balance check" },
+      rule_of_thirds: { value: 'Focal object sits at intersection lines', confidence: 85, reason: "Composition rules verification" },
+      golden_ratio: { value: 'unknown', confidence: 60, reason: "No golden ratio match found" },
+      depth: { value: 'layered overlapping cards and shadow depth', confidence: 94, reason: "Visual layering analysis" },
+      perspective: { value: 'Eye-level straight-on view', confidence: 90, reason: "Perspective check" },
+      layers: { value: 'Foreground product overlay, midground texts, background textured canvas', confidence: 94, reason: "Visual layering description" }
+    },
+
+    background: {
+      type: { value: background.includes('gradient') ? 'gradient' : 'solid textured', confidence: 95, reason: "Background visual properties check" },
+      texture: { value: background.includes('paper') ? 'textured paper' : 'smooth sweep', confidence: 90, reason: "Surface texture analysis" },
+      material: { value: background.includes('paper') ? 'paper' : 'plaster', confidence: 90, reason: "Material texture guess" },
+      blur: { value: 'none', confidence: 95, reason: "Sharp background details" },
+      gradient: { value: background.includes('gradient') ? 'linear vertical' : 'none', confidence: 95, reason: "Gradient check" },
+      lighting: { value: 'soft ambient glow', confidence: 90, reason: "Lighting context check" },
+      shadow: { value: 'soft drop shadows', confidence: 92, reason: "Shadow properties check" },
+      reflection: { value: 'none', confidence: 95, reason: "Reflection properties check" },
+      noise: { value: 'fine paper grain', confidence: 90, reason: "Noise check" }
+    },
+
+    lighting: {
+      direction: { value: lighting.includes('spotlight') ? 'overhead spotlight' : 'soft top-left', confidence: 90, reason: "Lighting direction analysis" },
+      intensity: { value: 'high key diffuse', confidence: 90, reason: "Lighting intensity" },
+      temperature: { value: 'neutral white', confidence: 92, reason: "Color temperature analysis" },
+      softness: { value: 'soft diffuse', confidence: 92, reason: "Ambient soft lighting" },
+      shadow_direction: { value: 'cast down and to the right', confidence: 90, reason: "Shadow casting angles" },
+      shadow_softness: { value: 'blurry soft edges', confidence: 92, reason: "Shadow hardness review" },
+      ambient: { value: 'soft uniform ambient light', confidence: 90, reason: "Ambient light review" },
+      highlights: { value: 'soft specular gloss', confidence: 90, reason: "Highlights check" }
+    },
+
+    brand_analysis: {
+      logo_position: { value: 'top-left corner', confidence: 95, reason: "Branding placeholder placement" },
+      brand_colors: { value: 'Navy trust tones representing medical corporate values', confidence: 92, reason: "Color meaning check" },
+      brand_consistency: { value: 'high', confidence: 90, reason: "Branding consistency check" },
+      visual_identity: { value: detectedIndustry === 'Healthcare/Medical' ? 'professional corporate' : 'playful athletic', confidence: 95, reason: "Branding elements consistency" },
+      brand_personality: { value: detectedIndustry === 'Healthcare/Medical' ? 'trustworthy, clinic-focused' : 'active, dynamic', confidence: 92, reason: "Personality tags check" }
+    },
+
+    design_style: {
+      style_tags: { value: detectedIndustry === 'Healthcare/Medical' ? ['Corporate', 'Medical', 'Clean'] : ['Sports', 'Modern', 'Bold'], confidence: 95, reason: "Design style categories matched" },
+      style_classification: { value: detectedIndustry === 'Healthcare/Medical' ? 'Healthcare' : 'Sports', confidence: 95, reason: "Classification tag" }
+    },
+
+    visual_hierarchy: {
+      primary_focus: { value: 'Large bold headings and central product asset', confidence: 95, reason: "Primary focus analysis" },
+      secondary_focus: { value: 'Subheadings and service cards details', confidence: 92, reason: "Secondary focus analysis" },
+      cta: { value: 'Pill button in contrast color', confidence: 95, reason: "CTA attention weight" },
+      reading_order: { value: 'Top-down reading order flow', confidence: 92, reason: "Visual reading pattern" },
+      eye_movement: { value: 'Z-scanning reading pattern from top logo to footer CTA', confidence: 90, reason: "Eye flow check" }
+    },
+
+    spacing_analysis: {
+      outer_margins: { value: 'Safe 48px borders around elements', confidence: 92, reason: "Spacing review" },
+      inner_padding: { value: 'Comfortable 24px padding inside layout components', confidence: 92, reason: "Spacing review" },
+      gap_between_sections: { value: 'Sufficient vertical spaces between blocks', confidence: 92, reason: "Spacing review" },
+      gap_between_text: { value: 'Compact 8px spacing between header and description', confidence: 90, reason: "Spacing review" },
+      gap_between_images: { value: 'none', confidence: 90, reason: "Spacing review" },
+      alignment_consistency: { value: 'high consistency', confidence: 95, reason: "Spacing review" }
+    },
+
+    images: {
+      subject: { value: detectedIndustry === 'Healthcare/Medical' ? 'Doctors / medical team' : 'Brand sneakers / product items', confidence: 95, reason: "Images subject analysis" },
+      photo_style: { value: 'Professional studio portrait', confidence: 92, reason: "Images photo style" },
+      cropping: { value: 'circular frame', confidence: 95, reason: "Images cropping shapes" },
+      placement: { value: assetPlacement, confidence: 92, reason: "Images placement" }
+    },
+    icons: { value: icons, confidence: 95, reason: "Icons detection details" },
+    shapes: { value: shapes, confidence: 95, reason: "Shapes detection details" }
   };
+
+  return result;
 }
+
 
 /** Master prompt compiler */
 export function generatePrompt({
@@ -204,6 +391,61 @@ export function generatePrompt({
   const styleRefs = includedAssets.filter(a => a.role === 'Style References');
 
   let out = '';
+
+  const formatPromptField = (val) => {
+    if (val === null || val === undefined) return 'Not Detected';
+    
+    if (typeof val === 'string') {
+      const cleanStr = val.trim();
+      if (!cleanStr || cleanStr.toLowerCase() === 'not detected' || cleanStr.toLowerCase() === 'unknown') {
+        return 'Not Detected';
+      }
+      return cleanStr.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+        return line.startsWith('•') ? `  ${line}` : `  • ${line}`;
+      }).join('\n');
+    }
+    
+    if (typeof val === 'number') {
+      return `  • ${val}`;
+    }
+    
+    if (typeof val === 'boolean') {
+      return `  • ${val ? 'Yes' : 'No'}`;
+    }
+    
+    if (Array.isArray(val)) {
+      if (val.length === 0) return 'Not Detected';
+      return val.map(item => {
+        const itemStr = typeof item === 'object' ? formatPromptField(item) : String(item).trim();
+        return itemStr.startsWith('  •') ? itemStr : `  • ${itemStr}`;
+      }).filter(line => line && !line.includes('[object Object]')).join('\n');
+    }
+    
+    if (typeof val === 'object') {
+      if ('value' in val) {
+        return formatPromptField(val.value);
+      }
+      if (Object.keys(val).length === 0) return 'Not Detected';
+      
+      const points = [];
+      Object.entries(val).forEach(([k, v]) => {
+        if (k === 'confidence' || k === 'reason' || k === 'hex_codes') return;
+        const formattedSub = formatPromptField(v);
+        if (formattedSub && formattedSub !== 'Not Detected' && !formattedSub.includes('[object Object]')) {
+          const cleanKey = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const indentedLines = formattedSub.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+            return line.startsWith('•') ? `    ${line}` : `    • ${line}`;
+          }).join('\n');
+          points.push(`  • ${cleanKey}:\n${indentedLines}`);
+        }
+      });
+      
+      if (points.length === 0) return 'Not Detected';
+      return points.join('\n');
+    }
+    
+    return 'Not Detected';
+  };
 
   // System guidelines block
   if (systemGuidelines?.trim()) {
@@ -273,22 +515,77 @@ export function generatePrompt({
   if (referenceImages.length) {
     out += `\nREFERENCE IMAGE ANALYSIS & INSPIRATION ATTRIBUTES\n`;
     out += `The following uploaded references are for inspiration only — NEVER copy them directly:\n`;
+    console.log("REFERENCE ANALYSIS OBJECT", JSON.stringify(referenceImages.map(r => r.analysis), null, 2));
+
     referenceImages.forEach(r => {
-      out += `• Reference "${r.name}" Analysis:\n`;
+      out += `• Reference "${r.name}" Visual Analysis:\n`;
       if (r.analysis) {
-        // Output only checked attributes
-        Object.entries(r.analysis).forEach(([attr, val]) => {
-          const isChecked = referenceSettings[attr] !== false; // default to true
-          if (isChecked) {
-            // Capitalize attribute name for cleaner display
-            const capitalizedAttr = attr.charAt(0).toUpperCase() + attr.slice(1).replace(/([A-Z])/g, ' $1');
-            if (attr === 'colors' && Array.isArray(val)) {
-              out += `  - ${capitalizedAttr}: Use color palette ${val.join(', ')}\n`;
-            } else {
-              out += `  - ${capitalizedAttr}: ${val}\n`;
-            }
+        const a = r.analysis;
+        
+        // 1. Industry & Style Category
+        if (referenceSettings.industry !== false && a.industry) {
+          out += `  - Detected Industry:\n${formatPromptField(a.industry)}\n`;
+        }
+        if (referenceSettings.design_type !== false && a.design_type) {
+          out += `  - Design Format:\n${formatPromptField(a.design_type)}\n`;
+        }
+        if (referenceSettings.style !== false && (a.style || a.design_style)) {
+          out += `  - Stylistic Mood:\n${formatPromptField(a.style || a.design_style)}\n`;
+        }
+
+        // 2. Colors Palette
+        if (referenceSettings.color_palette !== false && a.color_palette) {
+          const hexes = (a.color_palette.hex_codes || []).map(h => `${h.hex} (${h.percentage}%)`).join(', ');
+          out += `  - Color Palette & Dominance: ${hexes}\n`;
+          if (a.color_palette.background) {
+            out += `  - Background Color Context: ${formatPromptField(a.color_palette.background)}\n`;
           }
-        });
+        }
+
+        // 3. Layout Details
+        if (referenceSettings.layout !== false && a.layout) {
+          out += `  - Layout:\n${formatPromptField(a.layout)}\n`;
+        }
+
+        // 4. Typography Rules
+        if (referenceSettings.typography !== false && a.typography) {
+          out += `  - Typography:\n${formatPromptField(a.typography)}\n`;
+        }
+
+        // 5. Composition Metrics
+        if (referenceSettings.composition !== false && a.composition) {
+          out += `  - Composition:\n${formatPromptField(a.composition)}\n`;
+        }
+
+        // 6. Background Details
+        if (referenceSettings.background !== false && a.background) {
+          out += `  - Background:\n${formatPromptField(a.background)}\n`;
+        }
+
+        // 7. Images / Photography
+        if (referenceSettings.images !== false && a.images) {
+          out += `  - Objects / Subject:\n${formatPromptField(a.images)}\n`;
+        }
+
+        // 8. Design details (shapes, icons, branding, CTA, lighting, depth)
+        if (referenceSettings.shapes !== false && a.shapes) {
+          out += `  - Shapes:\n${formatPromptField(a.shapes)}\n`;
+        }
+        if (referenceSettings.icons !== false && a.icons) {
+          out += `  - Icons:\n${formatPromptField(a.icons)}\n`;
+        }
+        if (referenceSettings.branding !== false && (a.branding || a.brand_analysis)) {
+          out += `  - Branding:\n${formatPromptField(a.branding || a.brand_analysis)}\n`;
+        }
+        if (referenceSettings.cta !== false && a.cta) {
+          out += `  - CTA Button:\n${formatPromptField(a.cta)}\n`;
+        }
+        if (referenceSettings.lighting !== false && a.lighting) {
+          out += `  - Lighting:\n${formatPromptField(a.lighting)}\n`;
+        }
+        if (referenceSettings.depth !== false && a.depth) {
+          out += `  - Depth / Layering:\n${formatPromptField(a.depth)}\n`;
+        }
       } else {
         out += `  - General composition and layout style.\n`;
       }
@@ -324,6 +621,11 @@ export function generatePrompt({
   out += `• DO NOT generate or return any actual image.\n`;
   out += `• DO NOT write a conversational response. Write ONLY the final compiled image-generation prompt description ready to copy.\n`;
   out += `• Start your response directly with the prompt description.\n\ngenerate`;
+
+  if (out.includes('[object Object]')) {
+    console.error("WARNING: Detected [object Object] serialization error in generated prompt!");
+    out = out.replace(/\[object Object\]/g, 'Not Detected');
+  }
 
   return out;
 }

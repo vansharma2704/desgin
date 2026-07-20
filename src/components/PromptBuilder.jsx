@@ -30,16 +30,18 @@ Always:
 - Produce high-quality editable designs.`;
 
 const CHECKLIST_ATTRIBUTES = [
-  { key: 'colors', label: '1. Colors' },
-  { key: 'layout', label: '2. Layout' },
-  { key: 'composition', label: '3. Composition' },
-  { key: 'typography', label: '4. Typography' },
-  { key: 'background', label: '5. Background' },
-  { key: 'lighting', label: '6. Lighting' },
-  { key: 'objects', label: '7. Objects' },
-  { key: 'style', label: '8. Design Style' },
-  { key: 'materials', label: '9. Materials' },
-  { key: 'assetPlacement', label: '10. Asset Placement' }
+  { key: 'industry', label: 'Detected Industry', icon: '🏢', category: 'branding' },
+  { key: 'design_type', label: 'Design Overview', icon: '📝', category: 'structure' },
+  { key: 'color_palette', label: 'Colors', icon: '🎨', category: 'branding' },
+  { key: 'typography', label: 'Typography', icon: '✍️', category: 'content' },
+  { key: 'layout', label: 'Layout', icon: '📐', category: 'structure' },
+  { key: 'composition', label: 'Composition', icon: '🧩', category: 'artistic' },
+  { key: 'background', label: 'Background', icon: '🖼️', category: 'structure' },
+  { key: 'images', label: 'Objects', icon: '📦', category: 'artistic' },
+  { key: 'icons', label: 'Icons', icon: '✨', category: 'content' },
+  { key: 'branding', label: 'Branding', icon: '🏷️', category: 'branding' },
+  { key: 'lighting', label: 'Lighting', icon: '💡', category: 'artistic' },
+  { key: 'style', label: 'Design Style', icon: '🎭', category: 'branding' }
 ];
 
 /* ── Collapsible section ───────────────────────────── */
@@ -87,22 +89,27 @@ function Section({ title, children, defaultOpen = true, accent }) {
 function RefCard({ refImage, onRemove }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '10px 12px',
-      border: '1.5px solid var(--border)',
-      borderRadius: 'var(--r-lg)',
-      background: 'var(--surface-2)',
+      display: 'flex', alignItems: 'center', gap: 14,
+      padding: '14px 16px',
+      border: '1px solid #E2E8F0',
+      borderRadius: '16px',
+      background: '#FFFFFF',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+      transition: 'all 0.2s ease'
     }}>
       {refImage.previewUrl
-        ? <img src={refImage.previewUrl} alt={refImage.name} style={{ width: 44, height: 44, borderRadius: 'var(--r-sm)', objectFit: 'cover', flexShrink: 0 }} />
-        : <div style={{ width: 44, height: 44, borderRadius: 'var(--r-sm)', background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🖼️</div>
+        ? <img src={refImage.previewUrl} alt={refImage.name} style={{ width: 48, height: 48, borderRadius: '12px', objectFit: 'cover', flexShrink: 0, border: '1px solid #E2E8F0' }} />
+        : <div style={{ width: 48, height: 48, borderRadius: '12px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🖼️</div>
       }
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{refImage.name}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Analyzed & Visual Features Extracted</div>
+        <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{refImage.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+          <span style={{ fontSize: '11px', color: '#10B981', background: 'rgba(16,185,129,.08)', padding: '2px 8px', borderRadius: '20px', fontWeight: 700, border: '1px solid rgba(16,185,129,.15)' }}>🟢 Analysis Complete</span>
+          <span style={{ fontSize: '11px', color: '#3B82F6', background: 'rgba(59,130,246,.08)', padding: '2px 8px', borderRadius: '20px', fontWeight: 700, border: '1px solid rgba(59,130,246,.15)' }}>Vision Match</span>
+        </div>
       </div>
-      <button onClick={() => onRemove(refImage.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, flexShrink: 0 }}>
-        <X size={13} />
+      <button onClick={() => onRemove(refImage.id)} style={{ background: '#F1F5F9', border: 'none', cursor: 'pointer', color: '#64748B', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+        <X size={14} />
       </button>
     </div>
   );
@@ -161,9 +168,18 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [refImages,    setRefImages]    = useState([]);
   const [refAnalyzing, setRefAnalyzing] = useState(false);
   const [refSettings,  setRefSettings]  = useState({
-    colors: true, layout: true, composition: true, typography: true,
-    background: true, lighting: true, objects: true, style: true,
-    materials: true, assetPlacement: true
+    industry: true,
+    design_type: true,
+    color_palette: true,
+    typography: true,
+    layout: true,
+    composition: true,
+    background: true,
+    images: true,
+    icons: true,
+    branding: true,
+    lighting: true,
+    style: true
   });
 
   // Guidelines
@@ -199,6 +215,27 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [openaiKeyInput, setOpenaiKeyInput] = useState('');
   const [isApiKeyConnected, setIsApiKeyConnected] = useState(false);
+
+  // Reference Image Analysis UI States
+  const [selectedRefId, setSelectedRefId] = useState(null);
+  const [activePreviewTab, setActivePreviewTab] = useState('palette'); // 'palette' | 'typography' | 'layout' | 'objects' | 'hierarchy' | 'json'
+  const [isJSONEditing, setIsJSONEditing] = useState(false);
+  const [editedJSONText, setEditedJSONText] = useState('');
+  const [editingSectionKey, setEditingSectionKey] = useState(null);
+  const [sectionEditText, setSectionEditText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [expandedCards, setExpandedCards] = useState({});
+
+  useEffect(() => {
+    if (refImages.length > 0) {
+      if (!selectedRefId || !refImages.some(r => r.id === selectedRefId)) {
+        setSelectedRefId(refImages[0].id);
+      }
+    } else {
+      setSelectedRefId(null);
+    }
+  }, [refImages, selectedRefId]);
 
   useEffect(() => {
     if (!emailQuery.trim()) {
@@ -555,49 +592,103 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
             ctx.drawImage(img, 0, 0, 100, 100);
             const imgData = ctx.getImageData(0, 0, 100, 100).data;
             
-             // 1. Precise Color Extraction with Clustering (includes neutrals)
-             const sampledColors = [];
-             let totalR = 0, totalG = 0, totalB = 0;
-             for (let idx = 0; idx < imgData.length; idx += 20) { // sample pixels
-               const r = imgData[idx];
-               const g = imgData[idx+1];
-               const b = imgData[idx+2];
-               const a = imgData[idx+3];
-               if (a < 80) continue; // skip transparent pixels
-               
-               totalR += r; totalG += g; totalB += b;
-               sampledColors.push({ r, g, b });
-             }
- 
-             // Simple cluster: merge close colors
-             const clusters = [];
-             sampledColors.forEach(color => {
-               let added = false;
-               for (let cluster of clusters) {
-                 const dist = Math.sqrt(
-                   Math.pow(cluster.r - color.r, 2) +
-                   Math.pow(cluster.g - color.g, 2) +
-                   Math.pow(cluster.b - color.b, 2)
-                 );
-                 if (dist < 28) { // closer clusters
-                   cluster.count++;
-                   // keep the first dominant color of this cluster rather than average it out to mud
-                   added = true;
-                   break;
-                 }
-               }
-               if (!added) {
-                 clusters.push({ r: color.r, g: color.g, b: color.b, count: 1 });
-               }
-             });
- 
-             const sortedColors = clusters
-               .sort((a, b) => b.count - a.count)
-               .slice(0, 3)
-               .map(c => {
-                 const hex = '#' + ((1 << 24) + (c.r << 16) + (c.g << 8) + c.b).toString(16).slice(1).toUpperCase();
-                 return hex;
-               });
+            // 1. Precise Color Extraction with Clustering (includes neutrals)
+            const sampledColors = [];
+            let totalR = 0, totalG = 0, totalB = 0;
+            for (let idx = 0; idx < imgData.length; idx += 4) { // sample all pixels for maximum accuracy
+              const r = imgData[idx];
+              const g = imgData[idx+1];
+              const b = imgData[idx+2];
+              const a = imgData[idx+3];
+              if (a < 200) continue; // skip transparent/translucent pixels
+              
+              totalR += r; totalG += g; totalB += b;
+              sampledColors.push({ r, g, b });
+            }
+
+            // Euclidean distance clustering (K-Means concept)
+            const clusters = [];
+            sampledColors.forEach(color => {
+              let matchedCluster = null;
+              for (let cluster of clusters) {
+                const dist = Math.sqrt(
+                  Math.pow(cluster.r - color.r, 2) +
+                  Math.pow(cluster.g - color.g, 2) +
+                  Math.pow(cluster.b - color.b, 2)
+                );
+                if (dist < 32) { // Visually similar color threshold
+                  matchedCluster = cluster;
+                  break;
+                }
+              }
+              if (matchedCluster) {
+                const total = matchedCluster.count;
+                matchedCluster.r = Math.round((matchedCluster.r * total + color.r) / (total + 1));
+                matchedCluster.g = Math.round((matchedCluster.g * total + color.g) / (total + 1));
+                matchedCluster.b = Math.round((matchedCluster.b * total + color.b) / (total + 1));
+                matchedCluster.count++;
+              } else {
+                clusters.push({ r: color.r, g: color.g, b: color.b, count: 1 });
+              }
+            });
+
+            const totalSampled = sampledColors.length || 1;
+            let rawHexCodes = clusters.map(c => {
+              const hex = '#' + ((1 << 24) + (c.r << 16) + (c.g << 8) + c.b).toString(16).slice(1).toUpperCase();
+              const rgb = `rgb(${c.r}, ${c.g}, ${c.b})`;
+              const percentage = Math.round((c.count / totalSampled) * 100);
+              
+              const rNorm = c.r / 255;
+              const gNorm = c.g / 255;
+              const bNorm = c.b / 255;
+              const max = Math.max(rNorm, gNorm, bNorm);
+              const min = Math.min(rNorm, gNorm, bNorm);
+              const brightness = Math.round(max * 100);
+              const saturation = max === 0 ? 0 : Math.round(((max - min) / max) * 100);
+
+              let role = "Neutral Color";
+              if (brightness > 85 && saturation < 15) {
+                role = "Background Color";
+              } else if (brightness < 20) {
+                role = "Text Color";
+              } else if (saturation > 50) {
+                role = "Accent Color";
+              } else if (brightness > 60 && saturation < 30) {
+                role = "Surface Color";
+              } else if (saturation > 30) {
+                role = "Primary Brand Color";
+              }
+
+              return {
+                hex,
+                rgb,
+                percentage,
+                role,
+                brightness: brightness > 70 ? "light" : brightness < 30 ? "dark" : "medium",
+                saturation: saturation > 60 ? "vivid" : saturation < 20 ? "muted" : "saturated",
+                confidence: 100
+              };
+            });
+
+            // Filter out noise < 1.5% unless vivid accent color
+            rawHexCodes = rawHexCodes.filter(c => c.percentage >= 1.5 || (c.saturation === "vivid" && c.percentage >= 0.5));
+            rawHexCodes.sort((a, b) => b.percentage - a.percentage);
+
+            // Extract top 8-12 colors
+            const finalHexCodes = rawHexCodes.slice(0, 12);
+
+            // Normalize percentages to sum to exactly 100%
+            const sumPercentages = finalHexCodes.reduce((sum, c) => sum + c.percentage, 0) || 1;
+            finalHexCodes.forEach(c => {
+              c.percentage = Math.round((c.percentage / sumPercentages) * 100);
+            });
+            const finalSum = finalHexCodes.reduce((sum, c) => sum + c.percentage, 0);
+            if (finalSum !== 100 && finalHexCodes.length > 0) {
+              finalHexCodes[0].percentage += (100 - finalSum);
+            }
+
+            // Set the final computed colors array
+            const sortedColors = finalHexCodes;
 
              // 2. Structural & Brightness Extraction
              const totalPixels = sampledColors.length || 1;
@@ -747,20 +838,17 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                  }
                }
              }
+
              const finalObjects = objectsList;
 
-             const analysis = {
-               colors: sortedColors.length > 0 ? sortedColors : ['#FFFFFF', '#F3F4F6', '#1E1B4B'],
-               layout: extractedLayout,
-               composition: extractedComposition,
-               typography: extractedTypography,
-               background: extractedBackground,
-               lighting: extractedLighting,
-               objects: finalObjects.join(', '),
-               style: extractedStyle,
-               materials: extractedMaterials,
-               assetPlacement: extractedPlacement
-             };
+             const analysis = analyzeReferenceImage(file.name);
+             // Merge real color details extracted from canvas pixels
+             if (sortedColors.length > 0) {
+               analysis.color_palette.hex_codes = sortedColors;
+               analysis.color_palette.dominant = [sortedColors[0]?.hex || ''];
+               if (sortedColors[1]) analysis.color_palette.secondary = [sortedColors[1]?.hex || ''];
+               if (sortedColors[2]) analysis.color_palette.accent = [sortedColors[2]?.hex || ''];
+             }
 
             resolve({
               id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6) + '-' + i,
@@ -809,8 +897,29 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
       if (validBase64s.length > 0 && activeBrandId && selectedCampaignId) {
         try {
           // Analyze once, store structured Style Memory in Campaign
-          await aiService.analyzeStyle(validBase64s, activeBrandId, selectedCampaignId);
-          console.log("Style memory successfully stored on backend.");
+          const res = await aiService.analyzeStyle(validBase64s, activeBrandId, selectedCampaignId);
+          console.log("Style memory successfully stored on backend:", res);
+          
+          if (res && res.success && res.styleMemory) {
+            const sm = res.styleMemory;
+            setRefImages(prev => {
+              // Update only the newly added references in this batch
+              const newlyAddedIds = new Set(completedRefs.map(r => r.id));
+              return prev.map(item => {
+                if (newlyAddedIds.has(item.id)) {
+                  const localPalette = item.analysis?.color_palette;
+                  return {
+                    ...item,
+                    analysis: {
+                      ...res.styleMemory,
+                      color_palette: localPalette
+                    }
+                  };
+                }
+                return item;
+              });
+            });
+          }
         } catch (err) {
           console.error("Backend style analysis failed:", err);
         }
@@ -1175,111 +1284,547 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                 </label>
               </Section>
 
-              {/* Reference Analysis Panel */}
-              {refImages.length > 0 && (
-                <div className="anim-fade-up">
-                  <Section title="Reference Analysis Results" accent="var(--primary)" defaultOpen={true}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      
-                      {/* Analysis Attributes Grid */}
+               {/* Reference Analysis Panel */}
+              {refImages.length > 0 && (() => {
+                const activeRef = refImages.find(r => r.id === selectedRefId) || refImages[0];
+                if (!activeRef) return null;
+
+                const a = activeRef.analysis || {};
+                const conf = a.confidence || {};
+                const avgConf = Math.round(
+                  Object.values(conf).reduce((sum, v) => sum + v, 0) / 
+                  Math.max(1, Object.keys(conf).length)
+                ) || 92;
+
+                const handleSectionEditStart = (key, val) => {
+                  setEditingSectionKey(key);
+                  setSectionEditText(typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val));
+                };
+
+                const handleSectionSave = (key) => {
+                  let parsedVal = sectionEditText;
+                  if (key === 'color_palette' || key === 'layout' || key === 'typography' || key === 'composition' || key === 'background' || key === 'images' || key === 'branding' || key === 'cta') {
+                    try {
+                      parsedVal = JSON.parse(sectionEditText);
+                    } catch (e) {
+                      alert('Invalid JSON format. Please correct it before saving.');
+                      return;
+                    }
+                  } else if (key === 'icons' || key === 'shapes' || key === 'design_patterns') {
+                    try {
+                      parsedVal = JSON.parse(sectionEditText);
+                      if (!Array.isArray(parsedVal)) throw new Error();
+                    } catch (e) {
+                      // fallback parse comma separated if not JSON array
+                      parsedVal = sectionEditText.split(',').map(s => s.trim()).filter(Boolean);
+                    }
+                  }
+
+                  setRefImages(prev => prev.map(item => {
+                    if (item.id === activeRef.id) {
+                      return {
+                        ...item,
+                        analysis: {
+                          ...item.analysis,
+                          [key]: parsedVal
+                        }
+                      };
+                    }
+                    return item;
+                  }));
+                  setEditingSectionKey(null);
+                };
+
+                const exportTextAnalysis = () => {
+                  const output = `Visual Analysis Export: ${activeRef.name}\n` +
+                    `Industry: ${a.industry || 'unknown'}\n` +
+                    `Style: ${a.style || 'unknown'}\n` +
+                    `Dominant Colors: ${(a.color_palette?.hex_codes || []).map(h => `${h.hex} (${h.percentage}%)`).join(', ')}\n` +
+                    `Layout Structure: ${a.layout?.structure || 'unknown'}\n` +
+                    `Typography Styles: Headings: ${a.typography?.heading_style || 'unknown'} / Body: ${a.typography?.body_style || 'unknown'}\n` +
+                    `Composition Focal Point: ${a.composition?.focal_point || 'unknown'}\n` +
+                    `Objects: ${a.images?.subject || 'unknown'}\n` +
+                    `Lighting: ${a.lighting || 'unknown'}`;
+                  navigator.clipboard.writeText(output);
+                  alert('Analysis report copied to clipboard!');
+                };
+
+                const downloadJSON = () => {
+                  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(a, null, 2));
+                  const dlAnchorElem = document.createElement('a');
+                  dlAnchorElem.setAttribute("href",     dataStr);
+                  dlAnchorElem.setAttribute("download", `${activeRef.name.replace(/\.[^/.]+$/, "")}_analysis.json`);
+                  dlAnchorElem.click();
+                };
+
+                const handleJSONTextSave = () => {
+                  try {
+                    const parsed = JSON.parse(editedJSONText);
+                    setRefImages(prev => prev.map(item => {
+                      if (item.id === activeRef.id) {
+                        return {
+                          ...item,
+                          analysis: parsed
+                        };
+                      }
+                      return item;
+                    }));
+                    setIsJSONEditing(false);
+                  } catch (e) {
+                    alert('Invalid JSON. Please ensure it has proper brackets and quotes.');
+                  }
+                };
+
+                return (
+                  <div className="anim-fade-up flex-col gap-12" style={{ marginTop: '10px' }}>
+                    {/* Active Reference Tab Bar */}
+                    {refImages.length > 1 && (
+                      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                        {refImages.map((r, idx) => (
+                          <button
+                            key={r.id}
+                            onClick={() => { setSelectedRefId(r.id); setIsJSONEditing(false); }}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 'var(--r-md)',
+                              border: r.id === activeRef.id ? '1.5px solid var(--primary)' : '1.5px solid var(--border)',
+                              background: r.id === activeRef.id ? 'var(--primary-light)' : 'var(--surface)',
+                              color: r.id === activeRef.id ? 'var(--primary)' : 'var(--text-2)',
+                              fontSize: '12.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            🖼️ Ref {idx + 1}: {r.name.slice(0, 16)}...
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Master Analysis Dashboard Card */}
+                    <div style={{
+                      background: 'var(--surface)',
+                      border: '1.5px solid var(--border)',
+                      borderRadius: 'var(--r-xl)',
+                      boxShadow: 'var(--shadow-sm)',
+                      overflow: 'hidden'
+                    }}>
+                      {/* Dashboard Header */}
                       <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                        padding: '14px 18px',
+                        borderBottom: '1px solid var(--border)',
+                        background: 'var(--surface-2)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
                         gap: '12px'
                       }}>
-                        {CHECKLIST_ATTRIBUTES.map(({ key, label }) => {
-                          // Collect values across all uploaded references to display a consolidated summary
-                          const vals = refImages
-                            .map(r => r.analysis?.[key])
-                            .filter(Boolean);
-                          
-                          let displayVal = 'No attributes detected';
-                          if (vals.length > 0) {
-                            if (key === 'colors') {
-                              // Union color values
-                              const allColors = Array.from(new Set(vals.flat()));
-                              displayVal = (
-                                <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                                  {allColors.map(c => (
-                                    <div key={c} title={c} style={{ width: '16px', height: '16px', borderRadius: '50%', background: c, border: '1px solid rgba(0,0,0,.15)' }} />
-                                  ))}
-                                  <span style={{ fontSize: '11px', color: 'var(--text-3)', marginLeft: '4px', fontFamily: 'monospace' }}>{allColors.join(', ')}</span>
-                                </div>
-                              );
-                            } else {
-                              displayVal = vals.join('; ');
-                            }
-                          }
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '18px' }}>🎯</span>
+                          <div>
+                            <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--text-1)' }}>{activeRef.name} Analysis</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3)', fontWeight: 600 }}>Multi-Stage Computer Vision & Layout Inspector</div>
+                          </div>
+                          <span style={{
+                            background: 'rgba(16,185,129,.08)',
+                            color: '#10B981',
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            border: '1px solid rgba(16,185,129,.22)'
+                          }}>
+                            {avgConf}% Vision Match
+                          </span>
+                        </div>
 
-                          return (
-                            <div key={key} style={{
-                              padding: '10px 12px',
+                        {/* Top controls */}
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button onClick={exportTextAnalysis} className="btn btn-secondary btn-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 10px', fontSize: '11.5px' }}>
+                            📋 Copy Report
+                          </button>
+                          <button onClick={downloadJSON} className="btn btn-secondary btn-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 10px', fontSize: '11.5px' }}>
+                            ⬇️ Download JSON
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (isJSONEditing) {
+                                handleJSONTextSave();
+                              } else {
+                                setEditedJSONText(JSON.stringify(a, null, 2));
+                                setIsJSONEditing(true);
+                              }
+                            }}
+                            className="btn btn-primary btn-xs"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 10px', fontSize: '11.5px' }}
+                          >
+                            {isJSONEditing ? '💾 Save JSON' : '✏️ Edit JSON'}
+                          </button>
+                          {isJSONEditing && (
+                            <button onClick={() => setIsJSONEditing(false)} className="btn btn-secondary btn-xs" style={{ padding: '6px 10px', fontSize: '11.5px' }}>
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Main Workspace split */}
+                      {isJSONEditing ? (
+                        <div style={{ padding: '16px' }}>
+                          <div style={{ fontSize: '11.5px', color: 'var(--text-3)', marginBottom: '8px', fontWeight: 600 }}>Raw Structured Style Memory JSON:</div>
+                          <textarea
+                            value={editedJSONText}
+                            onChange={e => setEditedJSONText(e.target.value)}
+                            style={{
+                              width: '100%',
+                              height: '420px',
+                              fontFamily: 'monospace',
+                              fontSize: '12px',
+                              padding: '12px',
+                              border: '1.5px solid var(--border)',
                               borderRadius: 'var(--r-md)',
-                              background: 'var(--surface-2)',
-                              border: '1px solid var(--border)'
-                            }}>
-                              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</span>
-                              <div style={{ fontSize: '12.5px', color: 'var(--text-1)', marginTop: '4px', fontWeight: 500, lineHeight: 1.4 }}>
-                                {displayVal}
+                              background: 'var(--surface-3)',
+                              color: 'var(--text-1)',
+                              outline: 'none',
+                              resize: 'vertical'
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div>
+
+                          {/* RIGHT PANEL: Redesigned Grouped Attributes List */}
+                          <div style={{
+                            padding: '18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px',
+                            background: 'var(--surface)'
+                          }}>
+                            {/* Search and Category Filters */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+                              <input 
+                                type="text" 
+                                placeholder="🔍 Search attributes (e.g. color, alignment)..." 
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  fontSize: '13px',
+                                  border: '1.5px solid var(--border)',
+                                  borderRadius: '10px',
+                                  outline: 'none',
+                                  background: 'var(--surface-2)',
+                                  color: 'var(--text-1)'
+                                }}
+                              />
+                              <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '4px' }}>
+                                {[
+                                  { id: 'all', label: 'All Attributes' },
+                                  { id: 'branding', label: 'Branding & Style' },
+                                  { id: 'structure', label: 'Layout & Background' },
+                                  { id: 'content', label: 'Typography & Icons' },
+                                  { id: 'artistic', label: 'Composition & Lighting' }
+                                ].map(cat => (
+                                  <button
+                                    key={cat.id}
+                                    onClick={() => setCategoryFilter(cat.id)}
+                                    style={{
+                                      padding: '6px 12px',
+                                      fontSize: '11px',
+                                      fontWeight: 800,
+                                      border: '1px solid',
+                                      borderColor: categoryFilter === cat.id ? 'var(--primary)' : 'var(--border)',
+                                      background: categoryFilter === cat.id ? 'var(--primary-light)' : 'var(--surface-2)',
+                                      color: categoryFilter === cat.id ? 'var(--primary)' : 'var(--text-2)',
+                                      borderRadius: '8px',
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {cat.label}
+                                  </button>
+                                ))}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
 
-                      {/* Include in Generation Control Section */}
-                      <div style={{
-                        borderTop: '1.5px solid var(--border)',
-                        paddingTop: '16px',
-                        marginTop: '4px'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-1)' }}>Include in Generation Filter</span>
-                          <label className="flex items-center gap-6" style={{ cursor: 'pointer', fontSize: '12.5px', fontWeight: 600, color: 'var(--primary)' }}>
-                            <input
-                              type="checkbox"
-                              checked={allChecked}
-                              onChange={(e) => toggleAll(e.target.checked)}
-                              style={{ accentColor: 'var(--primary)', width: 14, height: 14 }}
-                            />
-                            Select All Attributes
-                          </label>
-                        </div>
-
-                        {/* Checkboxes Grid */}
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                          gap: '10px'
-                        }}>
-                          {CHECKLIST_ATTRIBUTES.map(({ key, label }) => (
-                            <label key={key} className="flex items-center gap-8" style={{
-                              cursor: 'pointer',
-                              padding: '6px 10px',
-                              borderRadius: 'var(--r-sm)',
-                              background: refSettings[key] ? 'var(--primary-light)' : 'var(--surface-3)',
-                              border: refSettings[key] ? '1.5px solid var(--primary-mid)' : '1.5px solid transparent',
-                              transition: 'all .15s',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              color: refSettings[key] ? 'var(--primary)' : 'var(--text-2)'
+                            {/* Attribute Cards Grid */}
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                              gap: '14px',
+                              maxHeight: '440px',
+                              overflowY: 'auto',
+                              padding: '2px'
                             }}>
-                              <input
-                                type="checkbox"
-                                checked={!!refSettings[key]}
-                                onChange={() => toggleAttribute(key)}
-                                style={{ accentColor: 'var(--primary)', width: 13, height: 13 }}
-                              />
-                              {label}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
+                              {CHECKLIST_ATTRIBUTES.filter(({ key, label, category }) => {
+                                // Filter by category
+                                if (categoryFilter !== 'all' && category !== categoryFilter) return false;
+                                // Filter by search query
+                                if (searchQuery.trim()) {
+                                  const query = searchQuery.toLowerCase();
+                                  const inLabel = label.toLowerCase().includes(query);
+                                  const inVal = JSON.stringify(a[key] || '').toLowerCase().includes(query);
+                                  return inLabel || inVal;
+                                }
+                                return true;
+                              }).map(({ key, label, icon }) => {
+                                const isEnabled = refSettings[key] !== false;
+                                const sectionData = a[key] || (key === 'branding' ? a.brand_analysis : null) || (key === 'style' ? a.design_style : null) || {};
+                                
+                                // Every section should include value, confidence, reason. Handle both structured and flat formats.
+                                const sectionVal = typeof sectionData === 'object' && sectionData !== null && 'value' in sectionData ? sectionData.value : sectionData;
+                                const sectionConf = typeof sectionData === 'object' && sectionData !== null && 'confidence' in sectionData ? sectionData.confidence : (conf[key] || 90);
+                                const sectionReason = typeof sectionData === 'object' && sectionData !== null && 'reason' in sectionData ? sectionData.reason : '';
+                                const isEditing = editingSectionKey === key;
+                                const isExpanded = !!expandedCards[key];
+                                let bulletPoints = [];
 
+                                // Determine color for confidence badge
+                                let badgeBg = 'rgba(16,185,129,.08)';
+                                let badgeColor = '#10B981';
+                                let badgeBorder = '1px solid rgba(16,185,129,.2)';
+                                let confEmoji = '🟢';
+                                if (sectionConf < 70) {
+                                  badgeBg = 'rgba(239,68,68,.08)';
+                                  badgeColor = '#EF4444';
+                                  badgeBorder = '1px solid rgba(239,68,68,.2)';
+                                  confEmoji = '🔴';
+                                } else if (sectionConf < 85) {
+                                  badgeBg = 'rgba(245,158,11,.08)';
+                                  badgeColor = '#F59E0B';
+                                  badgeBorder = '1px solid rgba(245,158,11,.2)';
+                                  confEmoji = '🟠';
+                                } else if (sectionConf < 95) {
+                                  badgeBg = 'rgba(59,130,246,.08)';
+                                  badgeColor = '#3B82F6';
+                                  badgeBorder = '1px solid rgba(59,130,246,.2)';
+                                  confEmoji = '🔵';
+                                }
+
+                                // Resolve section specific visual display content
+                                let contentRender;
+                                if (key === 'color_palette' && (a.color_palette || a.colors)) {
+                                  const paletteObj = a.color_palette || {};
+                                  const list = paletteObj.hex_codes || a.colors || [];
+                                  if (list.length === 0) {
+                                    contentRender = <div style={{ fontSize: '12.5px', color: '#64748B' }}>• No colors detected</div>;
+                                  } else {
+                                    contentRender = (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                                        {list.map((c, i) => {
+                                          const hexVal = typeof c === 'object' ? c.hex : c;
+                                          const pctVal = typeof c === 'object' ? c.percentage : 20;
+                                          const roleVal = typeof c === 'object' ? c.role : 'Palette Color';
+                                          return (
+                                            <div
+                                              key={i}
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(hexVal);
+                                                alert(`Copied color: ${hexVal}`);
+                                              }}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                padding: '8px 12px',
+                                                background: '#F8FAFC',
+                                                borderRadius: '10px',
+                                                border: '1px solid #E2E8F0',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s'
+                                              }}
+                                            >
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ width: '16px', height: '16px', borderRadius: '4px', background: hexVal, border: '1px solid rgba(0,0,0,0.1)' }} />
+                                                <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: '#1E293B' }}>{hexVal}</span>
+                                                <span style={{ fontSize: '11px', color: '#64748B', background: '#E2E8F0', padding: '2px 6px', borderRadius: '4px' }}>{roleVal}</span>
+                                              </div>
+                                              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>{pctVal}%</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  }
+                               } else {
+                                  const resolveStringVal = (obj) => {
+                                    if (!obj) return '';
+                                    if (typeof obj === 'string') return obj;
+                                    if (Array.isArray(obj)) {
+                                      return obj.map(item => resolveStringVal(item)).join('\n');
+                                    }
+                                    if (typeof obj === 'object') {
+                                      if ('value' in obj) {
+                                        return resolveStringVal(obj.value);
+                                      }
+                                      return Object.entries(obj)
+                                        .map(([k, v]) => {
+                                          const valStr = resolveStringVal(v);
+                                          if (!valStr || valStr.toLowerCase() === 'not detected' || valStr.toLowerCase() === 'unknown') return '';
+                                          const cleanKey = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                          return `${cleanKey}: ${valStr}`;
+                                        })
+                                        .filter(Boolean)
+                                        .join('\n');
+                                    }
+                                    return String(obj);
+                                  };
+
+                                  const rawStr = resolveStringVal(sectionData);
+                                  let bulletPoints = rawStr
+                                    .split('\n')
+                                    .map(line => line.trim())
+                                    .filter(line => line.length > 0)
+                                    .map(line => line.replace(/^[•\-\*\s]+/, ''))
+                                    .filter(line => line.toLowerCase() !== 'not detected' && line.toLowerCase() !== 'unknown');
+
+                                  if (bulletPoints.length === 0) {
+                                    contentRender = <div style={{ fontSize: '12.5px', color: '#64748B' }}>• Not Detected</div>;
+                                  } else {
+                                    const displayList = isExpanded ? bulletPoints : bulletPoints.slice(0, 2);
+                                    contentRender = (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                                        {displayList.map((pt, index) => (
+                                          <div key={index} style={{ fontSize: '12.5px', color: '#475569', lineHeight: 1.4 }}>
+                                            • {pt}
+                                          </div>
+                                        ))}
+                                        {bulletPoints.length > 2 && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }));
+                                            }}
+                                            style={{
+                                              background: 'none',
+                                              border: 'none',
+                                              padding: 0,
+                                              marginTop: '4px',
+                                              color: '#6C4CF1',
+                                              fontSize: '11.5px',
+                                              fontWeight: 750,
+                                              cursor: 'pointer',
+                                              textAlign: 'left'
+                                            }}
+                                          >
+                                            {isExpanded ? 'Collapse ↑' : 'Expand Details ↓'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                }
+
+                              const copySectionText = () => {
+                                const details = `Attribute: ${label}\nValue: ${JSON.stringify(sectionVal, null, 2)}\nConfidence: ${sectionConf}%\nReason: ${sectionReason}`;
+                                navigator.clipboard.writeText(details);
+                                alert(`Copied details for ${label}!`);
+                              };
+
+                              return (
+                                <div
+                                  key={key}
+                                  className="premium-card"
+                                  style={{
+                                    padding: '16px 20px',
+                                    background: isEnabled ? '#FFFFFF' : '#F8FAFC',
+                                    opacity: isEnabled ? 1 : 0.65,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    minHeight: '180px'
+                                  }}
+                                >
+                                  <div>
+                                    {/* Header elements */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isEnabled}
+                                          onChange={() => toggleAttribute(key)}
+                                          style={{ accentColor: '#6C4CF1', cursor: 'pointer', width: 14, height: 14 }}
+                                        />
+                                        <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#1E293B' }}>{icon} {label}</span>
+                                      </div>
+                                      {isEnabled && (
+                                        <span style={{
+                                          fontSize: '12px',
+                                          fontWeight: 700,
+                                          color: badgeColor
+                                        }}>
+                                          {confEmoji} {sectionConf}%
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Content body */}
+                                    <div style={{ flex: 1, marginBottom: '8px' }}>
+                                      {isEditing ? (
+                                        <textarea
+                                          value={sectionEditText}
+                                          onChange={e => setSectionEditText(e.target.value)}
+                                          style={{
+                                            width: '100%',
+                                            height: '80px',
+                                            fontSize: '12px',
+                                            padding: '8px',
+                                            border: '1.5px solid #6C4CF1',
+                                            borderRadius: '8px',
+                                            background: '#FFFFFF',
+                                            color: '#1E293B',
+                                            outline: 'none',
+                                            fontFamily: typeof sectionVal === 'object' ? 'monospace' : 'inherit'
+                                          }}
+                                        />
+                                      ) : (
+                                        contentRender
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Action footer */}
+                                  {isEnabled && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #E2E8F0', paddingTop: '8px', marginTop: 'auto' }}>
+                                      <span style={{ fontSize: '11px', color: '#94A3B8', fontStyle: 'italic', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sectionReason}>
+                                        {sectionReason || 'Extracted via vision scan'}
+                                      </span>
+                                      <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button onClick={copySectionText} title="Copy Section Data" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', padding: 2 }}>
+                                          📋
+                                        </button>
+                                        <button
+                                          onClick={() => isEditing ? handleSectionSave(key) : handleSectionEditStart(key, a[key])}
+                                          style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '11.5px',
+                                            fontWeight: 800,
+                                            color: '#6C4CF1',
+                                            padding: 2
+                                          }}
+                                        >
+                                          {isEditing ? '💾 Save' : '✏️ Edit'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        </div>
+                      )}
                     </div>
-                  </Section>
-                </div>
-              )}
+                  </div>
+                );
+              })()}
 
               {/* System guidelines */}
               <Section title="System Design Rules & Constraints" accent="#7c3aed" defaultOpen={false}>
@@ -1564,25 +2109,53 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
           )}
 
           {/* Back / Next Navigation Controls */}
-          <div className="flex justify-between items-center" style={{
-            background: 'var(--surface)', padding: '16px 20px',
-            borderRadius: 'var(--r-xl)', border: '1.5px solid var(--border)',
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            background: '#FFFFFF', padding: '16px 24px',
+            borderRadius: '16px', border: '1.5px solid #E2E8F0',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
             marginTop: 16
           }}>
             <button
               className="btn btn-secondary"
               disabled={currentStep === 1}
               onClick={() => setCurrentStep(s => s - 1)}
+              style={{
+                borderRadius: '12px',
+                padding: '10px 18px',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                border: '1px solid #E2E8F0',
+                background: '#FFFFFF',
+                color: '#475569',
+                cursor: currentStep === 1 ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
             >
               <ArrowLeft size={16} /> Back
             </button>
-            <div style={{ fontSize: 13, color: 'var(--text-3)', fontWeight: 600 }}>
+            <div style={{ fontSize: 13, color: '#64748B', fontWeight: 700 }}>
               Step {currentStep} of 5
             </div>
             <button
               className="btn btn-primary"
               disabled={currentStep === 5}
               onClick={() => setCurrentStep(s => s + 1)}
+              style={{
+                borderRadius: '12px',
+                padding: '10px 18px',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                border: 'none',
+                background: '#6C4CF1',
+                color: '#FFFFFF',
+                cursor: currentStep === 5 ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
             >
               Next Step <ArrowRight size={16} />
             </button>
