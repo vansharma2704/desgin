@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
-  LayoutGrid, Sparkles, MonitorPlay, BookMarked, LogOut, ArrowLeft, Copy, Trash2, Check, Save
+  LayoutGrid, Sparkles, MonitorPlay, BookMarked, LogOut, ArrowLeft, Copy, Trash2, Check, Save, UploadCloud
 } from 'lucide-react';
 
-import Dashboard    from './components/Dashboard';
-import CreateBrand  from './components/CreateBrand';
-import Option1Form  from './components/Option1Form';
+import Dashboard from './components/Dashboard';
+import CreateBrand from './components/CreateBrand';
+import Option1Form from './components/Option1Form';
 import Option2Wizard from './components/Option2Wizard';
 import BrandDetails from './components/BrandDetails';
-import Platforms    from './components/Platforms';
+import Platforms from './components/Platforms';
 import PromptBuilder from './components/PromptBuilder';
 import NotificationBell from './components/NotificationBell';
 
@@ -23,21 +23,23 @@ import DesignLibraryPage from './pages/DesignLibraryPage';
 import DesignPreviewPage from './pages/DesignPreviewPage';
 import PromptViewPage from './pages/PromptViewPage';
 import PromptEditPage from './pages/PromptEditPage';
+import UploadDesignPage from './pages/UploadDesignPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import brandService from './services/brandService';
 import promptService from './services/promptService';
 import designService from './services/designService';
 import authService from './services/authService';
+import { addNotification } from './utils/notifications';
 
 function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const navItems = [
-    { key: 'dashboard',  label: 'Dashboard',     icon: <LayoutGrid size={16}/> },
-    { key: 'platforms',  label: 'Platforms',     icon: <MonitorPlay size={16}/> },
-    { key: 'builder',    label: 'Prompt Builder', icon: <Sparkles size={16}/> },
-    { key: 'history',    label: 'Saved Designs', icon: <BookMarked size={16}/> },
+    { key: 'dashboard', label: 'Dashboard', icon: <LayoutGrid size={16} /> },
+    { key: 'builder', label: 'Prompt Builder', icon: <Sparkles size={16} /> },
+    { key: 'upload', label: 'Upload Design', icon: <UploadCloud size={16} /> },
+    { key: 'history', label: 'Saved Designs', icon: <BookMarked size={16} /> },
   ];
 
   return (
@@ -48,7 +50,7 @@ function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId })
           <div className="sidebar-logo-icon">
             <Sparkles size={16} color="#fff" />
           </div>
-          <div className="sidebar-logo-text">AI Brand<br/><span>Studio</span></div>
+          <div className="sidebar-logo-text">AI Brand<br /><span>Studio</span></div>
         </div>
         <NotificationBell role="editor" />
       </div>
@@ -63,6 +65,8 @@ function Sidebar({ view, setView, brands, selectedBrandId, setSelectedBrandId })
             setView(item.key);
             if (item.key === 'history') {
               navigate('/editor/saved-designs');
+            } else if (item.key === 'upload') {
+              navigate('/editor/upload-design');
             } else {
               navigate('/editor/dashboard');
             }
@@ -140,11 +144,10 @@ function DesignCard({ p, onOpen }) {
           {brand?.name || 'Unknown Brand'}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-          <span className={`badge ${
-            p.status === 'Approved' ? 'badge-primary' : 
-            p.status === 'Rejected' ? 'badge-danger' : 
-            p.status === 'Pending' ? 'badge-warning' : 'badge-gray'
-          }`} style={{ fontSize: '9px', padding: '2px 6px' }}>
+          <span className={`badge ${p.status === 'Approved' ? 'badge-primary' :
+              p.status === 'Rejected' ? 'badge-danger' :
+                p.status === 'Pending' ? 'badge-warning' : 'badge-gray'
+            }`} style={{ fontSize: '9px', padding: '2px 6px' }}>
             {p.status === 'Draft' ? 'Draft' : p.status}
           </span>
           <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
@@ -223,12 +226,28 @@ function DesignDetails({ p, onBack, onDelete, onSendForReview }) {
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!selectedReviewer) return;
+    let targetReviewer = selectedReviewer;
+    if (!targetReviewer && emailQuery.trim()) {
+      try {
+        const matches = await authService.searchReviewers(emailQuery.trim());
+        if (matches && matches.length > 0) {
+          targetReviewer = matches[0];
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    if (!targetReviewer) {
+      alert('Please select a valid reviewer account email.');
+      return;
+    }
     setSubmitting(true);
     try {
-      await onSendForReview(p._id || p.id, selectedReviewer._id);
+      const reviewerId = targetReviewer._id || targetReviewer.id;
+      await onSendForReview(p._id || p.id, reviewerId);
       setSelectedReviewer(null);
       setEmailQuery('');
+      alert(`Design sent for review to ${targetReviewer.name} (${targetReviewer.email}) successfully!`);
     } catch (err) {
       alert(err.message || 'Failed to submit review request');
     } finally {
@@ -255,9 +274,7 @@ function DesignDetails({ p, onBack, onDelete, onSendForReview }) {
           className="btn btn-secondary text-danger"
           style={{ color: 'var(--danger)', borderColor: 'rgba(220,38,38,0.2)', padding: '8px 16px' }}
           onClick={() => {
-            if (confirm('Are you sure you want to delete this design?')) {
-              onDelete(p._id || p.id);
-            }
+            onDelete(p._id || p.id);
           }}
         >
           <Trash2 size={14} /> Delete Design
@@ -267,11 +284,10 @@ function DesignDetails({ p, onBack, onDelete, onSendForReview }) {
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <h1 className="page-title" style={{ margin: 0 }}>{p.campaign || p.title || 'Untitled Design'}</h1>
-          <span className={`badge ${
-            p.status === 'Approved' ? 'badge-primary' : 
-            p.status === 'Rejected' ? 'badge-danger' : 
-            p.status === 'Pending' ? 'badge-warning' : 'badge-gray'
-          }`}>
+          <span className={`badge ${p.status === 'Approved' ? 'badge-primary' :
+              p.status === 'Rejected' ? 'badge-danger' :
+                p.status === 'Pending' ? 'badge-warning' : 'badge-gray'
+            }`}>
             {p.status === 'Draft' ? 'Draft (Private)' : p.status}
           </span>
         </div>
@@ -325,7 +341,7 @@ function DesignDetails({ p, onBack, onDelete, onSendForReview }) {
           </div>
 
           {/* Send for Review Box */}
-          {p.status === 'Draft' && (
+          {!['Pending', 'Pending Review', 'Submitted For Review', 'Approved'].includes(p.status) && (
             <div className="card" style={{ padding: '24px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '8px' }}>Send Design to Reviewer</div>
               <p style={{ fontSize: '12.5px', color: 'var(--text-3)', marginBottom: '16px' }}>Submit this compiled design configuration to a reviewer for feedback and approval.</p>
@@ -390,9 +406,10 @@ function EditorWorkspace() {
   const navigate = useNavigate();
 
   const [view, setView] = useState(
-    location.pathname === '/editor/saved-designs' ? 'history' : 'dashboard'
+    location.pathname === '/editor/saved-designs' ? 'history' :
+      location.pathname === '/editor/upload-design' ? 'upload' : 'dashboard'
   );
-  const [brands, setBrands]       = useState([]);
+  const [brands, setBrands] = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState(null);
   const [activeDesignId, setActiveDesignId] = useState(null); // for DesignDetails
   const [createMode, setCreateMode] = useState(null); // null | 'option1' | 'option2' | 'selector'
@@ -485,7 +502,7 @@ function EditorWorkspace() {
 
     if (createMode === 'selector') return <CreateBrand onSelect={setCreateMode} onBack={() => setCreateMode(null)} />;
     if (createMode === 'existing') return <Option1Form onSave={handleSaveBrand} onBack={() => setCreateMode('selector')} />;
-    if (createMode === 'scratch')  return <Option2Wizard onSave={handleSaveBrand} onBack={() => setCreateMode('selector')} />;
+    if (createMode === 'scratch') return <Option2Wizard onSave={handleSaveBrand} onBack={() => setCreateMode('selector')} />;
 
     // Dynamic Route hierarchy
     if (campaignId) {
@@ -523,31 +540,23 @@ function EditorWorkspace() {
     if (view === 'design-details') {
       const selectedDesign = savedPrompts.find(p => p._id === activeDesignId);
       return (
-        <DesignDetails
-          p={selectedDesign}
-          onBack={() => setView('history')}
-          onDelete={async (id) => {
-            try {
-              await designService.deleteDesign(id);
-              setSavedPrompts(prev => prev.filter(x => x._id !== id));
-              setView('history');
+        <div className="anim-fade-up" style={{ padding: '0px' }}>
+          <div style={{ padding: '24px 48px', maxWidth: 1700, margin: '0 auto' }}>
+            <button className="btn btn-ghost" onClick={() => setView('history')} style={{ paddingLeft: 0, marginBottom: 0 }}>
+              <ArrowLeft size={16} /> Back to Saved Designs
+            </button>
+          </div>
+          <PromptBuilder
+            brands={brands}
+            selectedBrandId={selectedBrandId}
+            setSelectedBrandId={setSelectedBrandId}
+            resumeDraft={selectedDesign}
+            onSavePrompt={async (p) => {
+              await fetchPrompts();
               fetchStats();
-            } catch (err) {
-              alert(err.message || 'Failed to delete design');
-            }
-          }}
-          onSendForReview={async (promptId, reviewerId) => {
-            try {
-              const updated = await designService.updateDesign(promptId, {
-                status: 'Pending',
-                reviewer: reviewerId
-              });
-              setSavedPrompts(prev => prev.map(p => p._id === promptId ? updated : p));
-            } catch (err) {
-              alert(err.message || 'Failed to send for review');
-            }
-          }}
-        />
+            }}
+          />
+        </div>
       );
     }
 
@@ -611,6 +620,8 @@ function EditorWorkspace() {
             }}
           />
         );
+      case 'upload':
+        return <UploadDesignPage addNotification={addNotification} />;
       default:
         return null;
     }
@@ -658,7 +669,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          
+
           <Route
             path="/editor/dashboard"
             element={
@@ -688,6 +699,15 @@ export default function App() {
 
           <Route
             path="/editor/saved-designs"
+            element={
+              <ProtectedRoute allowedRoles={['Editor']}>
+                <EditorWorkspace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/editor/upload-design"
             element={
               <ProtectedRoute allowedRoles={['Editor']}>
                 <EditorWorkspace />

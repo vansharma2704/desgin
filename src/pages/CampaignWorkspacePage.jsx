@@ -134,7 +134,6 @@ export default function CampaignWorkspacePage() {
   };
 
   const handleDeleteDesign = async (id) => {
-    if (!confirm('Are you sure you want to delete this design?')) return;
     try {
       await designService.deleteDesign(id);
       setDesigns(prev => prev.filter(d => d._id !== id));
@@ -146,12 +145,27 @@ export default function CampaignWorkspacePage() {
 
   const handleSendForReview = async (e) => {
     e.preventDefault();
-    if (!selectedReviewer || !activeDesignId) return;
+    let targetReviewer = selectedReviewer;
+    if (!targetReviewer && emailQuery.trim()) {
+      try {
+        const matches = await authService.searchReviewers(emailQuery.trim());
+        if (matches && matches.length > 0) {
+          targetReviewer = matches[0];
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    if (!targetReviewer || !activeDesignId) {
+      alert('Please select a valid reviewer account email.');
+      return;
+    }
     setSubmittingReview(true);
     try {
+      const reviewerId = targetReviewer._id || targetReviewer.id;
       const updated = await designService.updateDesign(activeDesignId, {
         status: 'Pending Review',
-        reviewer: selectedReviewer._id
+        reviewer: reviewerId
       });
       addNotification(
         'reviewer',
@@ -161,7 +175,7 @@ export default function CampaignWorkspacePage() {
       setDesigns(prev => prev.map(d => d._id === activeDesignId ? updated : d));
       setSelectedReviewer(null);
       setEmailQuery('');
-      alert('Design sent for review successfully!');
+      alert(`Design sent for review to ${targetReviewer.name} (${targetReviewer.email}) successfully!`);
     } catch (err) {
       alert(err.message || 'Failed to send for review');
     } finally {
@@ -203,11 +217,13 @@ export default function CampaignWorkspacePage() {
     );
   }
 
+  const activeDesign = designs.find(d => d._id === activeDesignId);
+
   if (workspaceView === 'builder') {
     return (
       <div className="anim-fade-up" style={{ padding: '0px' }}>
         <div style={{ padding: '24px 48px', maxWidth: 1700, margin: '0 auto' }}>
-          <button className="btn btn-ghost" onClick={() => { setWorkspaceView('list'); navigate(location.pathname, { replace: true, state: {} }); }} style={{ paddingLeft: 0, marginBottom: 0 }}>
+          <button className="btn btn-ghost" onClick={() => { setActiveDesignId(null); setWorkspaceView('list'); navigate(location.pathname, { replace: true, state: {} }); }} style={{ paddingLeft: 0, marginBottom: 0 }}>
             <ArrowLeft size={16} /> Back to Campaign
           </button>
         </div>
@@ -216,7 +232,7 @@ export default function CampaignWorkspacePage() {
           selectedBrandId={activeBrandId}
           setSelectedBrandId={setActiveBrandId}
           campaignId={campaignId}
-          resumeDraft={location.state?.resumeDraft}
+          resumeDraft={activeDesign || location.state?.resumeDraft}
           savedPlatform={{ name: 'Instagram', width: 1080, height: 1080, unit: 'px' }}
           onSavePrompt={async (p) => {
             await handleAutoSaveGenerated(p.prompt, p.imageUrl);
@@ -267,7 +283,7 @@ export default function CampaignWorkspacePage() {
                     className="card card-hover anim-scale-in"
                     onClick={() => {
                       setActiveDesignId(d._id);
-                      setWorkspaceView('design-details');
+                      setWorkspaceView('builder');
                     }}
                     style={{ cursor: 'pointer', padding: 14, display: 'flex', gap: 12, alignItems: 'center', border: '1.5px solid var(--border)' }}
                   >
@@ -382,7 +398,7 @@ export default function CampaignWorkspacePage() {
               </div>
 
               {/* Share review panel */}
-              {selectedDesign.status === 'Draft' && (
+              {!['Pending', 'Pending Review', 'Submitted For Review', 'Approved'].includes(selectedDesign.status) && (
                 <div className="card" style={{ padding: '24px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '8px' }}>Send Design to Reviewer</div>
                   <p style={{ fontSize: '12.5px', color: 'var(--text-3)', marginBottom: '16px' }}>Submit this generated creative to a reviewer for feedback and approval.</p>

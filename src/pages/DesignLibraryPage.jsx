@@ -124,9 +124,17 @@ function DesignCard({ design, onPreview, onEdit, onDownload, onDelete, onDuplica
           </div>
         )}
 
-        {/* Status badge overlay */}
-        <div style={{ position: 'absolute', top: 10, left: 10 }}>
+        {/* Status & Type badge overlay */}
+        <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 6 }}>
           <StatusBadge status={design.status} />
+          <span style={{
+            fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+            background: design.submissionType === 'Uploaded Design' ? 'rgba(59,130,246,.12)' : 'rgba(108,76,241,.12)',
+            color: design.submissionType === 'Uploaded Design' ? '#2563eb' : '#6C4CF1',
+            border: `1.5px solid ${design.submissionType === 'Uploaded Design' ? 'rgba(59,130,246,.25)' : 'rgba(108,76,241,.25)'}`
+          }}>
+            {design.submissionType === 'Uploaded Design' ? 'Uploaded' : 'AI Generated'}
+          </span>
         </div>
 
         {/* Hover quick-actions overlay */}
@@ -256,7 +264,7 @@ function DesignCard({ design, onPreview, onEdit, onDownload, onDelete, onDuplica
                 </button>
               ))}
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-              <button onClick={() => { onDelete(design._id); setMenuOpen(false); }}
+              <button onClick={() => { onDelete(design); setMenuOpen(false); }}
                 style={{
                   width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center',
                   gap: 8, padding: '7px 12px', background: 'none', border: 'none',
@@ -465,12 +473,25 @@ export default function DesignLibraryPage({ onResumeDraft }) {
     } catch (err) { alert('Duplicate failed: ' + err.message); }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this design? This cannot be undone.')) return;
+  const [designToDelete, setDesignToDelete] = useState(null);
+
+  const handleDelete = (item) => {
+    setDesignToDelete(item);
+  };
+
+  const confirmDelete = async () => {
+    if (!designToDelete) return;
+    const targetId = typeof designToDelete === 'string' ? designToDelete : (designToDelete._id || designToDelete.id);
+    if (!targetId) return;
+
     try {
-      await designService.deleteDesign(id);
-      setDesigns(prev => prev.filter(d => d._id !== id));
-    } catch (err) { alert('Delete failed: ' + err.message); }
+      await designService.deleteDesign(targetId);
+      setDesigns(prev => prev.filter(d => (d._id || d.id)?.toString() !== targetId.toString()));
+      setDesignToDelete(null);
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Delete failed: ' + (err.message || 'Server error'));
+    }
   };
 
   const handleRename = async (design) => {
@@ -492,6 +513,8 @@ export default function DesignLibraryPage({ onResumeDraft }) {
 
   /* ── Filtering & Sorting ── */
   const filtered = designs.filter(d => {
+    // Only show explicitly saved designs or completed/submitted designs
+    if (d.isDraft === true && !d.isSaved) return false;
     const q = search.toLowerCase();
     if (q && !d.name?.toLowerCase().includes(q) && !d.prompt?.toLowerCase().includes(q)) return false;
     if (selectedBrand !== 'ALL' && d.brandId?._id !== selectedBrand && d.brandId !== selectedBrand) return false;
@@ -686,7 +709,7 @@ export default function DesignLibraryPage({ onResumeDraft }) {
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <button className="btn btn-secondary btn-xs" onClick={() => navigate(`/editor/designs/${design._id}`)}><Eye size={12} /></button>
                         <button className="btn btn-secondary btn-xs" onClick={() => onResumeDraft(design)}><Edit3 size={12} /></button>
-                        <button className="btn btn-secondary btn-xs" style={{ color: 'var(--danger)' }} onClick={() => handleDelete(design._id)}><Trash2 size={12} /></button>
+                        <button className="btn btn-secondary btn-xs" style={{ color: 'var(--danger)' }} onClick={() => handleDelete(design)}><Trash2 size={12} /></button>
                       </div>
                     </td>
                   </tr>
@@ -710,6 +733,60 @@ export default function DesignLibraryPage({ onResumeDraft }) {
           <button className="btn btn-secondary btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
             Next <ChevronRight size={14} />
           </button>
+        </div>
+      )}
+
+      {/* ── In-App Delete Confirmation Modal ── */}
+      {designToDelete && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }} onClick={() => setDesignToDelete(null)}>
+          <div className="anim-fade-up" style={{
+            width: '100%', maxWidth: '420px', background: 'var(--surface)',
+            borderRadius: '24px', padding: '24px', border: '1.5px solid var(--border)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '16px'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '44px', height: '44px', borderRadius: '14px',
+                background: 'rgba(239, 68, 68, 0.1)', color: '#DC2626',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+              }}>
+                <Trash2 size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 750, color: 'var(--text-1)' }}>Delete Design</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: 'var(--text-3)' }}>This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--text-2)', lineHeight: '1.5' }}>
+              Are you sure you want to permanently delete <strong>"{typeof designToDelete === 'object' ? (designToDelete?.name || 'Untitled Design') : 'this design'}"</strong>?
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setDesignToDelete(null)}
+                style={{ padding: '9px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 650 }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={confirmDelete}
+                style={{
+                  padding: '9px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
+                  background: '#DC2626', color: '#FFFFFF', border: 'none',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)'
+                }}
+              >
+                Delete Design
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

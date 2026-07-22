@@ -6,6 +6,7 @@ import Design from '../models/Design.js';
 import GenerationHistory from '../models/GenerationHistory.js';
 import VersionHistory from '../models/VersionHistory.js';
 import OpenAIService from '../services/OpenAIService.js';
+import GeminiService from '../services/GeminiService.js';
 import { buildOptimizedPrompt } from '../utils/promptBuilder.js';
 
 /**
@@ -22,8 +23,20 @@ export const analyzeStyle = async (req, res, next) => {
       throw new Error('imageUrls is required and must be an array of image urls or base64 data strings');
     }
 
-    // Call OpenAI service to parse the reference images
-    const { styleMemory, metadata } = await OpenAIService.extractStyleMemory(imageUrls);
+    let styleMemory, metadata;
+
+    // Try Gemini first (free), then fall back to OpenAI
+    if (GeminiService.isAvailable()) {
+      console.log('[analyzeStyle] Using Gemini Vision (free tier)');
+      const result = await GeminiService.extractStyleMemory(imageUrls);
+      styleMemory = result.styleMemory;
+      metadata = result.metadata;
+    } else {
+      console.log('[analyzeStyle] Gemini not available, trying OpenAI...');
+      const result = await OpenAIService.extractStyleMemory(imageUrls);
+      styleMemory = result.styleMemory;
+      metadata = result.metadata;
+    }
 
     // Persist style memory to Brand if requested
     if (brandId && mongoose.isValidObjectId(brandId)) {

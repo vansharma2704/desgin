@@ -72,146 +72,163 @@ export function analyzeReferenceImage(fileName) {
   const seed = fileName.toLowerCase();
   const nameHash = [...fileName].reduce((acc, char) => acc + char.charCodeAt(0), 0);
   
-  // 1. Color Palette Selection
-  let colors = ['#F8FAFC', '#0F172A', '#64748B']; // slate cool tech default
-  if (seed.includes('gold') || seed.includes('warm') || seed.includes('luxury') || seed.includes('yellow')) {
-    colors = ['#1E1B4B', '#F59E0B', '#FEF3C7'];
-  } else if (seed.includes('retro') || seed.includes('sunset') || seed.includes('orange')) {
-    colors = ['#7C2D12', '#F97316', '#FEF3C7'];
-  } else if (seed.includes('green') || seed.includes('forest') || seed.includes('nature') || seed.includes('organic')) {
-    colors = ['#064E3B', '#10B981', '#ECFDF5'];
-  } else if (seed.includes('neon') || seed.includes('cyber') || seed.includes('dark')) {
-    colors = ['#09090B', '#EC4899', '#3B82F6'];
-  } else if (seed.includes('red') || seed.includes('sport') || seed.includes('poco') || seed.includes('crimson')) {
-    colors = ['#18181B', '#DC2626', '#F4F4F5'];
-  } else if (seed.includes('blue') || seed.includes('ocean') || seed.includes('water') || seed.includes('sky')) {
-    colors = ['#0F172A', '#0284C7', '#E0F2FE'];
-  } else if (seed.includes('purple') || seed.includes('pink') || seed.includes('lavender') || seed.includes('cosmetic')) {
-    colors = ['#2E1065', '#D946EF', '#FDF4FF'];
-  } else if (seed.includes('pastel') || seed.includes('soft') || seed.includes('light')) {
-    colors = ['#FFFBEB', '#F472B6', '#E0F2FE'];
-  }
-
-  // 2. Layout construction
-  let layout = 'Centered geometric showcase placing a heavy double-ruled shadow frame around the focal object';
-  if (seed.includes('minimal') || seed.includes('clean') || seed.includes('white')) {
-    layout = 'Ultra-clean gallery display showcasing a thin black photo frame border on an off-white background';
-  } else if (seed.includes('sport') || seed.includes('stadium') || seed.includes('run') || seed.includes('action')) {
-    layout = 'Dynamic athletic action alignment with angled graphic panels and high-energy borders';
-  } else if (seed.includes('fashion') || seed.includes('magazine') || seed.includes('editorial') || seed.includes('puma')) {
-    layout = 'Clean asymmetrical split-frame composition with absolute borders dividing text from layout visuals';
-  } else if (seed.includes('green') || seed.includes('nike') || seed.includes('dunk') || seed.includes('jordan')) {
-    layout = 'Minimalist poster layout featuring a prominent dark green central frame housing the sneakers with stylized brand text overlays';
-  } else if (seed.includes('grid') || seed.includes('collage') || seed.includes('split')) {
-    layout = 'Structured multi-panel grid system with hairline dividers separating hero product and copy blocks';
-  }
-
-  // 3. Typography construction
-  let typography = 'Barlow Condensed (Headings) & Archivo (Body Copy) paired with clean geometric labels';
-  if (seed.includes('luxury') || seed.includes('elegant') || seed.includes('editorial') || seed.includes('fashion') || seed.includes('cosmetic')) {
-    typography = 'Classy editorial serif (headings) paired with clean geometric sans-serif for secondary details';
-  } else if (seed.includes('sport') || seed.includes('bold') || seed.includes('action') || seed.includes('nike')) {
-    typography = 'Heavy geometric block sans-serif letterings layered behind the product frame, with clean classic details';
-  } else if (seed.includes('cyber') || seed.includes('neon') || seed.includes('tech')) {
-    typography = 'Technical monospaced font family (Share Tech Mono) paired with Space Grotesk';
-  }
-
-  // 4. Style construction
-  let style = 'Refined Artistic Gallery / Premium Editorial Minimal';
-  if (seed.includes('retro') || seed.includes('vintage') || seed.includes('classic')) {
-    style = 'Bold Retro Sports Editorial / High Contrast Grid Poster';
-  } else if (seed.includes('luxury') || seed.includes('premium') || seed.includes('cosmetic') || seed.includes('perfume')) {
-    style = 'Modern Luxury Lifestyle / Editorial Fashion Spread';
-  } else if (seed.includes('sport') || seed.includes('athletic') || seed.includes('stadium')) {
-    style = 'High-Energy Cinematic / Athletic Advertising Poster';
-  } else if (seed.includes('cyber') || seed.includes('neon') || seed.includes('dark')) {
-    style = 'Industrial Cyberpunk / High Contrast Technical Style';
-  }
-
-  // 5. Background construction
-  let background = 'Clean, soft-lit museum gallery wall or plaster studio background with subtle ambient drop shadows';
-  if (seed.includes('green') || seed.includes('nike') || seed.includes('dunk')) {
-    background = 'Off-white textured paper mock wall background with minor pins/tapes, casting light natural shadows';
-  } else if (seed.includes('dark') || seed.includes('cyber') || seed.includes('neon')) {
-    background = 'Deep charcoal industrial plaster wall casting strong geometric diagonal light beam shadows';
-  } else if (seed.includes('stadium') || seed.includes('field') || seed.includes('sport')) {
-    background = 'Atmospheric wet stadium ground with moody stadium floodlights and fog';
-  } else if (seed.includes('nature') || seed.includes('forest') || seed.includes('outdoor')) {
-    background = 'Dappled sunlight passing through forest canopy onto a natural earth or stone pedestal';
-  }
-
-  // 6. Asset Placement construction
-  let assetPlacement = 'The hero product is placed exactly inside the central photo frame, with logo and caption placed clean outside or overlapping the frame border';
-  if (seed.includes('diagonal') || seed.includes('dynamic') || seed.includes('sport')) {
-    assetPlacement = 'The product is placed diagonally overlapping a large stylized text logo frame, with smaller captions offset in the corners';
-  } else if (seed.includes('asymmetric') || seed.includes('split') || seed.includes('editorial')) {
-    assetPlacement = 'Hero product placed diagonally inside a left-offset photo canvas panel, with logo placed top-left and copy blocks right-aligned';
-  }
-
-  // 7. Extract objects/elements from file name
-  const detectedObjects = [];
-  if (seed.includes('shoe') || seed.includes('sneaker') || seed.includes('nike') || seed.includes('dunk') || seed.includes('puma') || seed.includes('jordan')) {
-    detectedObjects.push('premium athletic sneaker product');
-  } else if (seed.includes('bottle') || seed.includes('drink') || seed.includes('beverage') || seed.includes('can')) {
-    detectedObjects.push('beverage container mockups');
-  } else if (seed.includes('watch') || seed.includes('perfume') || seed.includes('cosmetic') || seed.includes('makeup')) {
-    detectedObjects.push('luxury fashion accessory items');
-  } else {
-    detectedObjects.push('central hero product focus');
-  }
-
-  if (seed.includes('plant') || seed.includes('flower') || seed.includes('leaf') || seed.includes('green')) {
-    detectedObjects.push('foliage elements / plant pot decoration');
-  }
-  if (seed.includes('shadow') || seed.includes('light') || seed.includes('sun')) {
-    detectedObjects.push('ambient window frame light shadows');
-  } else {
-    detectedObjects.push('floating geometric block shadows');
-  }
-  
-  if (detectedObjects.length < 3) {
-    detectedObjects.push('minimal decorative pedestal base');
-  }
-
-  const objects = detectedObjects.join(', ');
-
-  // 8. Other properties
-  const compositions = [
-    'Layered poster setup with sneakers/products placed in midground, overlapping background typography',
-    'High contrast asymmetrical split-screen with sharp layering and deep midground perspective',
-    'Centered frame layout with strong visual depth and layering of elements',
-    'Golden spiral layout drawing focal path to the primary foreground frame details'
+  const archetypes = [
+    {
+      industry: 'Healthcare/Medical',
+      design_type: 'Flyer',
+      style: 'Professional, Trustworthy, Healthcare Minimal',
+      layout: 'Centered Hero Layout, Clean Section Grid, Balanced White Space',
+      typography: 'Bold Sans Serif Headings, Left Aligned Body, Strong Text Hierarchy',
+      background: 'Soft Clean Backdrop, Matte Texture, Professional Studio Wash',
+      lighting: 'Diffused Overhead Light, Soft Drop Shadows',
+      images: 'Doctor Portrait, Clinical Medical Equipment',
+      branding: 'Logo Top Left, Corporate Color Accent',
+      composition: 'Central Focal Point, Clear Visual Reading Order',
+      shapes: ['Rounded Rectangle', 'Circular discount badge'],
+      icons: ['Medical stethoscope', 'Heartbeat pulse line', 'Cross badge'],
+      materials: 'Off-white textured card stock, smooth leather, and matte painted frames',
+      visual_flow: 'Path from top logo down through the diagonal hero into benefits',
+      focal_point: 'Doctor Portrait'
+    },
+    {
+      industry: 'Sports/Athletic',
+      design_type: 'Social Post',
+      style: 'Bold, High-Energy, Dynamic Athletic',
+      layout: 'Asymmetric Split Layout, Angled Graphic Panels, High Contrast Spacing',
+      typography: 'Heavy Block Sans Serif, High Contrast Text, Center Aligned Title',
+      background: 'Dark Textured Canvas, Gritty Charcoal Material',
+      lighting: 'Strong Side Key Light, High Contrast Casting Shadows',
+      images: 'Athlete Portrait, Action Sports Gear',
+      branding: 'Logo Center Top, Dynamic Energy Accents',
+      composition: 'High Action Focus, Diagonal Eye Flow',
+      shapes: ['Wave', 'Curved overlays'],
+      icons: ['Running athlete silhouette', 'Shoe icon', 'Thunder bolt'],
+      materials: 'Polished concrete, dark textured plaster, and reflective glass surfaces',
+      visual_flow: 'Path from high contrast logo down along the diagonal action grid',
+      focal_point: 'Athlete Portrait'
+    },
+    {
+      industry: 'Luxury/Cosmetics',
+      design_type: 'Editorial Poster',
+      style: 'Luxury, Refined Elegant, Premium Minimal',
+      layout: 'Minimalist Grid Layout, Wide Uniform Margins, Airy Spacing',
+      typography: 'Sophisticated Serif Heading, Light Sans Serif Body, Generous Letter Spacing',
+      background: 'Soft Pastel Backdrop, Smooth Satin Finish, Gentle Glow Wash',
+      lighting: 'Soft Studio Ring Light, Specs of White Highlights',
+      images: 'Cosmetic Product Shot, Elegant Floral Element',
+      branding: 'Logo Bottom Center, Gold Foil Texture Accent',
+      composition: 'Balanced Asymmetry, Minimal Visual Noise',
+      shapes: ['Rounded card panels'],
+      icons: ['Luxury crest', 'Premium gold stars'],
+      materials: 'Premium matte paper, glass panels, and painted clean wood tabletop',
+      visual_flow: 'Path from central delicate logo down into product features',
+      focal_point: 'Cosmetic Product Shot'
+    },
+    {
+      industry: 'Food/Restaurant',
+      design_type: 'Social Post',
+      style: 'Warm, Friendly, Appetizing Dining',
+      layout: 'Two-Column Layout, Hero Food Placement, Clean Coupon Sections',
+      typography: 'Friendly Rounded Headings, High Legibility Body',
+      background: 'Warm Textured Paper, Natural Wood Backdrop',
+      lighting: 'Warm Sunset Lighting, Soft Ambient Glow',
+      images: 'Delicious Prepared Dish, Fresh Organic Ingredients',
+      branding: 'Logo Top Right, Bold Call-to-Action Chip',
+      composition: 'Culinary Focal Point, Top-to-Bottom Flow',
+      shapes: ['Circle', 'Circular discount badge'],
+      icons: ['Fork and knife icon', 'Special offer star'],
+      materials: 'Sleek industrial metal, brushed aluminum frame, and plastic canvas overlays',
+      visual_flow: 'Path from appetizing food picture down to price badge',
+      focal_point: 'Delicious Prepared Dish'
+    },
+    {
+      industry: 'Technology/Software',
+      design_type: 'Web Banner',
+      style: 'Futuristic, Sleek Cyber, Modern Corporate',
+      layout: 'Diagonal Tech Split, Structured Columns, Hairline Border Dividers',
+      typography: 'Technical Monospaced Details, Modern Sans Serif Headings',
+      background: 'Dark Carbon Texture, Deep Ambient Glow Backdrop',
+      lighting: 'Cyan/Purple Neon Accent Lights, Soft Specular Sheen',
+      images: 'App Interface Mockup, Abstract Digital Shapes',
+      branding: 'Logo Top Left, Cyber Color Border Highlights',
+      composition: 'Interface Focus, Multi-Level Hierarchy',
+      shapes: ['Rounded card panels', 'Grid line patterns'],
+      icons: ['Design grid indicator', 'Social handles'],
+      materials: 'Carbon fiber, dark plastic panels, and emissive LED screens',
+      visual_flow: 'Path from software interface down to modern typography',
+      focal_point: 'App Interface Mockup'
+    },
+    {
+      industry: 'Travel & Tourism',
+      design_type: 'Banner',
+      style: 'Adventurous, Scenic, Sunny Mood',
+      layout: 'Full Bleed Image Grid, Cozy Split Sections',
+      typography: 'Bold Script Accents, High Contrast Sans Serif Headings',
+      background: 'Clean Nature Backdrop, Scenic Vista Canvas',
+      lighting: 'Natural Sunlight, Warm Atmospheric Highlights',
+      images: 'Traveler Portrait, Scenic Mountain View',
+      branding: 'Logo Top Left, Travel Seal Accent',
+      composition: 'Scenic Focal Point, Left-to-Right Reading Path',
+      shapes: ['Circle badge', 'Wavy landscape overlays'],
+      icons: ['Compass icon', 'Airplane travel icon'],
+      materials: 'Glossy photo paper finish, natural wood paneling',
+      visual_flow: 'Path from mountain scene down to contact number',
+      focal_point: 'Traveler Portrait'
+    },
+    {
+      industry: 'Real Estate/Architecture',
+      design_type: 'Brochure',
+      style: 'Elegant, High-End, Structured Modern',
+      layout: 'Clean Split Columns, Asymmetric House Showcase',
+      typography: 'Geometric Sans Serif, Clean Labels',
+      background: 'Smooth Concrete Backdrop, Subtle Plaster Texture',
+      lighting: 'Soft Daylight, Sharp Architectural Shadows',
+      images: 'Modern Villa Exterior, Clean Kitchen Interior',
+      branding: 'Logo Bottom Right, Gold Accent Divider Line',
+      composition: 'Geometric Structural Balance, Modern Line Flow',
+      shapes: ['Rectangle borders', 'Thin divider lines'],
+      icons: ['Home location pin', 'Phone call button'],
+      materials: 'Stone tile, polished marble, and matte concrete',
+      visual_flow: 'Path from main property photo down into agency badge',
+      focal_point: 'Modern Villa Exterior'
+    },
+    {
+      industry: 'Education/Academy',
+      design_type: 'Flyer',
+      style: 'Friendly, Bright, Informational Corporate',
+      layout: 'Centered Section Grid, Cozy Left Column Margin',
+      typography: 'Friendly Rounded Sans Serif, Clear Bullet Text',
+      background: 'Bright Solid Backdrop, Subtle Classroom Wall Pattern',
+      lighting: 'Uniform Diffused Ambient Lighting',
+      images: 'Student Portrait, Classroom Graphic',
+      branding: 'Logo Top Left, Bright Colorful Accents',
+      composition: 'Academic Focus, Top-to-Bottom Read Path',
+      shapes: ['Round badges', 'Star graphics'],
+      icons: ['Graduation cap icon', 'Open book symbol'],
+      materials: 'Recycled paper stock, glossy cover finish',
+      visual_flow: 'Path from academy logo down to classroom photo',
+      focal_point: 'Student Portrait'
+    }
   ];
-  const composition = compositions[nameHash % compositions.length];
 
-  const lightings = [
-    'Soft directional window light with natural contrast shadows',
-    'Dramatic overhead spotlighting with high contrast and deep industrial shadows',
-    'Soft studio diffusion lighting casting gentle shadows',
-    'Subtle side key light highlighting edge contours and textured leather highlights'
-  ];
-  const lighting = lightings[nameHash % lightings.length];
+  // Pick archetype based on filename hash
+  const arch = archetypes[nameHash % archetypes.length];
 
-  const materialsList = [
-    'Off-white textured card stock, smooth leather, and matte painted frames',
-    'Polished concrete, dark textured plaster, and reflective glass surfaces',
-    'Premium matte paper, glass panels, and painted clean wood tabletop',
-    'Sleek industrial metal, brushed aluminum frame, and plastic canvas overlays'
-  ];
-  const materials = materialsList[nameHash % materialsList.length];
+  const colors = arch.industry === 'Healthcare/Medical' ? ['#0284C7', '#0F172A', '#E0F2FE'] :
+                 arch.industry === 'Sports/Athletic' ? ['#DC2626', '#18181B', '#F4F4F5'] :
+                 arch.industry === 'Luxury/Cosmetics' ? ['#2E1065', '#D946EF', '#FDF4FF'] :
+                 arch.industry === 'Food/Restaurant' ? ['#7C2D12', '#F97316', '#FEF3C7'] :
+                 arch.industry === 'Technology/Software' ? ['#09090B', '#EC4899', '#3B82F6'] :
+                 arch.industry === 'Travel & Tourism' ? ['#D97706', '#1E3A8A', '#FEF3C7'] :
+                 arch.industry === 'Real Estate/Architecture' ? ['#1E293B', '#10B981', '#F8FAFC'] :
+                 ['#4F46E5', '#1E1B4B', '#EEF2FF'];
 
-  const mood = seed.includes('sport') || seed.includes('action')
-    ? 'Energetic, vintage retro, and highly creative'
-    : 'Sophisticated, clean, editorial, and timeless';
-
-  // Build top 8 color hex codes with percentages based on colors list
   const hex_codes = colors.map((c, idx) => {
     return {
       hex: c,
       percentage: idx === 0 ? 55 : idx === 1 ? 30 : 15
     };
   });
-  // Add some fallback neutrals to fill top 8
   const extraNeutrals = ['#FFFFFF', '#F1F5F9', '#E2E8F0', '#CBD5E1', '#94A3B8'];
   while (hex_codes.length < 8) {
     const nextNeutral = extraNeutrals[hex_codes.length - colors.length] || '#000000';
@@ -221,29 +238,27 @@ export function analyzeReferenceImage(fileName) {
     });
   }
 
-  const detectedIndustry = seed.includes('green') || seed.includes('nike') || seed.includes('dunk') || seed.includes('jordan') || seed.includes('sport')
-    ? 'Sports/Athletic'
-    : seed.includes('medical') || seed.includes('healthcare') || seed.includes('doctor') || seed.includes('clinic') || seed.includes('hospital')
-      ? 'Healthcare/Medical'
-      : 'Corporate/General';
-
-  const shapes = [];
-  if (seed.includes('wave') || seed.includes('curve')) shapes.push('Wave', 'Curved overlays');
-  if (seed.includes('circle') || seed.includes('badge')) shapes.push('Circle', 'Circular discount badge');
-  if (seed.includes('square') || seed.includes('card')) shapes.push('Rounded Rectangle');
-
-  const icons = [];
-  if (detectedIndustry === 'Healthcare/Medical') {
-    icons.push('Medical stethoscope', 'Heartbeat pulse line', 'Cross badge');
-  } else if (detectedIndustry === 'Sports/Athletic') {
-    icons.push('Running athlete silhouette', 'Shoe icon', 'Thunder bolt');
-  } else {
-    icons.push('Design grid indicator', 'Social handles');
-  }
+  const detectedIndustry = arch.industry;
+  const layout = arch.layout;
+  const typography = arch.typography;
+  const style = arch.style;
+  const background = arch.background;
+  const lighting = arch.lighting;
+  const objects = arch.images;
+  const shapes = arch.shapes;
+  const icons = arch.icons;
+  const composition = arch.composition;
+  const materials = arch.materials;
+  const visual_flow = arch.visual_flow;
+  const assetPlacement = arch.branding || 'unknown';
 
   const result = {
     industry: { value: detectedIndustry, confidence: 95, reason: "Inferred from template content and style rules" },
-    design_type: { value: seed.includes('flyer') ? 'Flyer' : 'Social Post', confidence: 92, reason: "Identified visual format size and proportions" },
+    design_type: { 
+      value: "Hero Product → Center\nLogo → Top Left\nHeading → Upper Left\nBody Copy → Left Column\nCTA → Bottom Right\nDecorative Shapes → Around Hero Product\nBackground Elements → Behind Hero Product\nLayer Order → Background → Product → Text → CTA\nSafe Margins Maintained", 
+      confidence: 95, 
+      reason: "Identified asset placement and layout composition order" 
+    },
     platform: { value: seed.includes('instagram') ? 'Instagram' : 'unknown', confidence: 85, reason: "Canvas dimensions match platform specs" },
     
     color_palette: {
@@ -447,6 +462,50 @@ export function generatePrompt({
     return 'Not Detected';
   };
 
+  // Helper to extract clean attributes list for a key
+  const getRefAttributes = (key) => {
+    if (referenceSettings[key] === false) return [];
+    const items = [];
+    referenceImages.forEach(r => {
+      if (!r.analysis) return;
+      const a = r.analysis;
+      const sectionData = a[key] || (key === 'branding' ? a.brand_analysis : null) || (key === 'style' ? a.design_style : null);
+      if (!sectionData) return;
+
+      const resolveStringVal = (obj) => {
+        if (!obj) return '';
+        if (typeof obj === 'string') return obj;
+        if (Array.isArray(obj)) {
+          return obj.map(item => resolveStringVal(item)).join('\n');
+        }
+        if (typeof obj === 'object') {
+          if ('value' in obj) {
+            return resolveStringVal(obj.value);
+          }
+          return Object.entries(obj)
+            .map(([k2, v2]) => {
+              const valStr = resolveStringVal(v2);
+              if (!valStr || valStr.toLowerCase() === 'not detected' || valStr.toLowerCase() === 'unknown') return '';
+              return valStr;
+            })
+            .filter(Boolean)
+            .join('\n');
+        }
+        return String(obj);
+      };
+
+      const rawStr = resolveStringVal(sectionData);
+      const lines = rawStr.split('\n');
+      lines.forEach(line => {
+        const cleanLine = line.trim().replace(/^[•\-\*\s]+/, '');
+        if (cleanLine && cleanLine.toLowerCase() !== 'not detected' && cleanLine.toLowerCase() !== 'unknown') {
+          items.push(cleanLine);
+        }
+      });
+    });
+    return Array.from(new Set(items));
+  };
+
   // System guidelines block
   if (systemGuidelines?.trim()) {
     out += systemGuidelines.trim() + '\n\n';
@@ -459,135 +518,176 @@ export function generatePrompt({
   out += `Canvas Size: ${platSize}\n`;
   out += `Shape: ${shape}\n\n`;
 
-  // Brand info
-  out += `BRAND\n`;
-  out += `Name: ${bName}\n`;
-  if (brand?.industry) out += `Industry: ${brand.industry}\n`;
-  if (brand?.style)    out += `Style: ${brand.style}\n`;
-  if (brand?.tone)     out += `Tone: ${brand.tone}\n\n`;
+  // Colors Section
+  out += `COLORS\n\n`;
+  out += `Official Brand Palette\n\n`;
+  const brandColors = brand?.colors || [];
+  out += (brandColors.length ? brandColors.map(c => `${c}`).join('\n') : 'Not Defined') + '\n\n';
 
-  // Colors
-  out += `COLORS\n`;
-  const referenceColorsChecked = referenceSettings.colors !== false && referenceImages.some(r => r.analysis?.colors?.length > 0);
-  if (referenceColorsChecked) {
-    // Gather and union all unique color hex codes from references
-    const refColorList = Array.from(new Set(
-      referenceImages
-        .map(r => r.analysis?.colors)
-        .filter(Boolean)
-        .flat()
-    ));
-    out += `Palette (Extracted from uploaded References): ${refColorList.join(', ')}\n`;
-    out += `Use color palette inspired by the analyzed reference styles exclusively.\n`;
-  } else if (colorMode === 'custom' && customColors) {
-    out += `Background: ${customColors.background}\n`;
-    out += `Heading: ${customColors.heading}\n`;
-    out += `Sub-heading: ${customColors.subheading}\n`;
-    out += `Body Text: ${customColors.body}\n`;
+  const refColors = [];
+  if (referenceSettings.color_palette !== false) {
+    referenceImages.forEach(r => {
+      const hexCodes = r.analysis?.color_palette?.hex_codes || r.analysis?.colors || [];
+      hexCodes.forEach(c => {
+        const hex = typeof c === 'object' ? c.hex : c;
+        const role = typeof c === 'object' ? c.role : 'Palette Color';
+        if (hex) refColors.push(`${hex} (${role})`);
+      });
+    });
+  }
+  const uniqueRefColors = Array.from(new Set(refColors));
+
+  if (uniqueRefColors.length > 0) {
+    out += `Reference Color Inspiration\n\n`;
+    out += uniqueRefColors.map(c => `${c}`).join('\n') + '\n\n';
+    out += `Instructions\n\n`;
+    out += `• Use the official brand palette as the PRIMARY visual identity.\n`;
+    out += `• Use the selected reference colors ONLY as inspiration.\n`;
+    out += `• Reference colors may influence:\n`;
+    out += `  - backgrounds\n  - gradients\n  - accent colors\n  - decorative graphics\n  - highlights\n  - supporting elements\n`;
+    out += `• Never replace the official brand colors.\n`;
+    out += `• Brand colors always have higher priority than reference colors.\n\n`;
   } else {
-    out += `Palette: ${(brand?.colors || []).join(', ')}\n`;
-    out += `Use official brand color palette exclusively.\n`;
+    out += `Use the official brand color palette exclusively.\n\n`;
   }
 
-  // Typography
+  // Typography Section
+  out += `TYPOGRAPHY\n\n`;
   if (brand?.typography) {
-    out += `\nTYPOGRAPHY\n`;
     const t = brand.typography;
-    if (t.heading) out += `Heading: ${t.heading}\n`;
-    if (t.body)    out += `Body: ${t.body}\n`;
-    if (t.accent)  out += `Accent: ${t.accent}\n`;
+    if (t.heading)                    out += `Primary Font\n\n${t.heading}\n\n`;
+    if (t.body)                       out += `Body Font\n\n${t.body}\n\n`;
+  }
+  const refTypoItems = getRefAttributes('typography');
+  if (refTypoItems.length > 0) {
+    out += `Reference Typography Inspiration\n\n`;
+    out += refTypoItems.map(item => `• ${item}`).join('\n') + '\n\n';
+    out += `Instructions\n\n`;
+    out += `Keep the official brand fonts.\n\n`;
+    out += `Use the reference typography only for:\n`;
+    out += `• hierarchy\n• alignment\n• sizing\n• spacing\n• weight\n\n`;
+    out += `Never replace the brand fonts.\n\n`;
   }
 
-  // Assets
-  out += `\nBRAND ASSETS\n`;
-  // Logo — always included from brand guidelines
+  // Layout Section
+  const refLayoutItems = getRefAttributes('layout');
+  if (refLayoutItems.length > 0) {
+    out += `LAYOUT\n\n`;
+    out += refLayoutItems.map(item => `• ${item}`).join('\n') + '\n\n';
+  }
+
+  // Composition Section
+  const refCompItems = getRefAttributes('composition');
+  if (refCompItems.length > 0) {
+    out += `COMPOSITION\n\n`;
+    out += refCompItems.map(item => `• ${item}`).join('\n') + '\n\n';
+  }
+
+  // Branding Section
+  const refBrandingItems = getRefAttributes('branding');
+  if (refBrandingItems.length > 0) {
+    out += `BRANDING\n\n`;
+    out += refBrandingItems.map(item => `• ${item}`).join('\n') + '\n\n';
+  }
+
+  // Background Section
+  const refBgItems = getRefAttributes('background');
+  if (refBgItems.length > 0) {
+    out += `BACKGROUND\n\n`;
+    out += `Reference Background Inspiration\n\n`;
+    out += refBgItems.map(item => `• ${item}`).join('\n') + '\n\n';
+  }
+
+  // Objects Section
+  const refObjectItems = getRefAttributes('images');
+  const hasRefObjects = refObjectItems.length > 0;
+  if (products.length || hasRefObjects) {
+    out += `OBJECTS\n\n`;
+    if (products.length) {
+      out += `Uploaded Brand Assets\n\n`;
+      out += products.map(p => `• ${p.name}`).join('\n') + '\n\n';
+    }
+    if (hasRefObjects) {
+      out += `Reference Object Inspiration\n\n`;
+      out += refObjectItems.map(item => `• ${item}`).join('\n') + '\n\n';
+      out += `Instructions\n\n`;
+      out += `Replace every reference product with the uploaded brand hero product.\n\n`;
+      out += `Never recreate reference products.\n\n`;
+    }
+  }
+
+  // Icons Section
+  const refIconItems = getRefAttributes('icons');
+  if (refIconItems.length > 0) {
+    out += `ICONS\n\n`;
+    out += refIconItems.map(item => `• ${item}`).join('\n') + '\n\n';
+  }
+
+  // Lighting Section
+  const refLightingItems = getRefAttributes('lighting');
+  if (refLightingItems.length > 0) {
+    out += `LIGHTING\n\n`;
+    out += `Reference Lighting Inspiration\n\n`;
+    out += refLightingItems.map(item => `• ${item}`).join('\n') + '\n\n';
+  }
+
+  // Asset Placement Section
+  const refPlacementItems = getRefAttributes('design_type');
+  if (refPlacementItems.length > 0) {
+    out += `ASSET PLACEMENT\n\n`;
+    out += refPlacementItems.map(item => `• ${item}`).join('\n') + '\n\n';
+    out += `Instructions\n\n`;
+    out += `• Place the uploaded hero product at the center as the primary focal object.\n`;
+    out += `• Position the uploaded logo in the top-left corner.\n`;
+    out += `• Position the heading in the upper-left.\n`;
+    out += `• Position the CTA in the bottom-right.\n`;
+    out += `• Keep decorative graphics surrounding the hero product.\n`;
+    out += `• Maintain the detected spatial relationships while adapting them to the uploaded assets.\n\n`;
+    out += `Never reference or recreate the original reference product.\n`;
+    out += `Always replace detected products with the uploaded brand hero product.\n\n`;
+  }
+
+  // Brand Assets & Rest of Uploads
+  out += `BRAND ASSETS\n\n`;
   if (logo) {
     out += `Logo: Use the official brand logo "${logo.name}" from the brand guidelines — place prominently, do not distort, stretch, or modify.\n`;
   } else {
     out += `Logo: Use the official brand logo as defined in the brand guidelines — place prominently, do not distort, stretch, or modify.\n`;
   }
-  if (products.length)   out += `Hero Product(s): ${products.map(a => `"${a.name}"`).join(', ')} — primary visual focal point of the design.\n`;
   if (envs.length)       out += `Environment: ${envs.map(a => `"${a.name}"`).join(', ')} — use as atmospheric backdrop or scene.\n`;
   if (packaging.length)  out += `Packaging: ${packaging.map(a => `"${a.name}"`).join(', ')} — show physical brand mockups.\n`;
-  if (styleRefs.length)  out += `Style Reference(s): ${styleRefs.map(a => `"${a.name}"`).join(', ')} — use for visual tone only, never copy directly.\n`;
+  if (styleRefs.length)  out += `Style Reference(s): ${styleRefs.map(a => `"${a.name}"`).join(', ')} — use for visual tone only, never copy directly.\n\n`;
 
-  // Reference images
-  if (referenceImages.length) {
-    out += `\nREFERENCE IMAGE ANALYSIS & INSPIRATION ATTRIBUTES\n`;
-    out += `The following uploaded references are for inspiration only — NEVER copy them directly:\n`;
-    console.log("REFERENCE ANALYSIS OBJECT", JSON.stringify(referenceImages.map(r => r.analysis), null, 2));
+  // Remaining general Reference Image Analysis (Industry and Design Style)
+  const remainingKeys = ['industry', 'style'];
+  const activeRemaining = remainingKeys.filter(k => referenceSettings[k] !== false);
+
+  if (referenceImages.length && activeRemaining.length > 0) {
+    out += `REFERENCE IMAGE ANALYSIS & INSPIRATION ATTRIBUTES\n\n`;
+    out += `The following uploaded references are for inspiration only — NEVER copy them directly:\n\n`;
 
     referenceImages.forEach(r => {
+      if (!r.analysis) return;
       out += `• Reference "${r.name}" Visual Analysis:\n`;
-      if (r.analysis) {
-        const a = r.analysis;
-        
-        // 1. Industry & Style Category
-        if (referenceSettings.industry !== false && a.industry) {
-          out += `  - Detected Industry:\n${formatPromptField(a.industry)}\n`;
-        }
-        if (referenceSettings.design_type !== false && a.design_type) {
-          out += `  - Design Format:\n${formatPromptField(a.design_type)}\n`;
-        }
-        if (referenceSettings.style !== false && (a.style || a.design_style)) {
-          out += `  - Stylistic Mood:\n${formatPromptField(a.style || a.design_style)}\n`;
-        }
+      const a = r.analysis;
 
-        // 2. Colors Palette
-        if (referenceSettings.color_palette !== false && a.color_palette) {
-          const hexes = (a.color_palette.hex_codes || []).map(h => `${h.hex} (${h.percentage}%)`).join(', ');
-          out += `  - Color Palette & Dominance: ${hexes}\n`;
-          if (a.color_palette.background) {
-            out += `  - Background Color Context: ${formatPromptField(a.color_palette.background)}\n`;
-          }
-        }
-
-        // 3. Layout Details
-        if (referenceSettings.layout !== false && a.layout) {
-          out += `  - Layout:\n${formatPromptField(a.layout)}\n`;
-        }
-
-        // 4. Typography Rules
-        if (referenceSettings.typography !== false && a.typography) {
-          out += `  - Typography:\n${formatPromptField(a.typography)}\n`;
-        }
-
-        // 5. Composition Metrics
-        if (referenceSettings.composition !== false && a.composition) {
-          out += `  - Composition:\n${formatPromptField(a.composition)}\n`;
-        }
-
-        // 6. Background Details
-        if (referenceSettings.background !== false && a.background) {
-          out += `  - Background:\n${formatPromptField(a.background)}\n`;
-        }
-
-        // 7. Images / Photography
-        if (referenceSettings.images !== false && a.images) {
-          out += `  - Objects / Subject:\n${formatPromptField(a.images)}\n`;
-        }
-
-        // 8. Design details (shapes, icons, branding, CTA, lighting, depth)
-        if (referenceSettings.shapes !== false && a.shapes) {
-          out += `  - Shapes:\n${formatPromptField(a.shapes)}\n`;
-        }
-        if (referenceSettings.icons !== false && a.icons) {
-          out += `  - Icons:\n${formatPromptField(a.icons)}\n`;
-        }
-        if (referenceSettings.branding !== false && (a.branding || a.brand_analysis)) {
-          out += `  - Branding:\n${formatPromptField(a.branding || a.brand_analysis)}\n`;
-        }
-        if (referenceSettings.cta !== false && a.cta) {
-          out += `  - CTA Button:\n${formatPromptField(a.cta)}\n`;
-        }
-        if (referenceSettings.lighting !== false && a.lighting) {
-          out += `  - Lighting:\n${formatPromptField(a.lighting)}\n`;
-        }
-        if (referenceSettings.depth !== false && a.depth) {
-          out += `  - Depth / Layering:\n${formatPromptField(a.depth)}\n`;
-        }
-      } else {
-        out += `  - General composition and layout style.\n`;
+      if (referenceSettings.industry !== false && a.industry) {
+        out += `  - Detected Industry:\n${formatPromptField(a.industry)}\n`;
+      }
+      if (referenceSettings.style !== false && (a.style || a.design_style)) {
+        out += `  - Stylistic Mood:\n${formatPromptField(a.style || a.design_style)}\n`;
+      }
+      if (referenceSettings.layout !== false && a.layout) {
+        out += `  - Layout:\n${formatPromptField(a.layout)}\n`;
+      }
+      if (referenceSettings.composition !== false && a.composition) {
+        out += `  - Composition:\n${formatPromptField(a.composition)}\n`;
+      }
+      if (referenceSettings.branding !== false && (a.branding || a.brand_analysis)) {
+        out += `  - Branding:\n${formatPromptField(a.branding || a.brand_analysis)}\n`;
+      }
+      if (referenceSettings.icons !== false && a.icons) {
+        out += `  - Icons:\n${formatPromptField(a.icons)}\n`;
       }
     });
   }
@@ -611,16 +711,39 @@ export function generatePrompt({
   out += `\n──────────────────────────────────────\n`;
   out += `OUTPUT INSTRUCTIONS\n`;
   out += `──────────────────────────────────────\n\n`;
-  out += `You are an AI Image Prompt Compiler. Based on the rules, assets, campaign content, and reference image analyses described above, write a detailed, high-fidelity image generation prompt (e.g. for Midjourney, DALL-E 3, or Stable Diffusion).\n`;
-  out += `This prompt must instruct the generator to build a composite graphic matching the reference layout structure, but substituting the products:\n`;
-  out += `• Primary Focal Object: You MUST use the uploaded brand hero products (${products.length ? products.map(a => `"${a.name}"`).join(', ') : '"the primary product asset"'}) as the absolute central focal item. Do NOT generate or describe the reference sneakers/shoes or reference products inside the final layout; instead, drop in the user's uploaded product asset.\n`;
-  out += `• Structure: Place the uploaded brand product asset inside the analyzed reference "Layout" structure (e.g. placing the uploaded product inside the central frame border) and "Asset Placement".\n`;
-  out += `• Colors & Style: Apply the extracted color palette and editorial style directly to the canvas elements.\n`;
-  out += `• Text overlays: Specify placing the typography, headings ("${heading || ''}"), and brand logo cleanly relative to the frame.\n\n`;
-  out += `⚠ IMPORTANT — TEXT RESPONSE ONLY:\n`;
-  out += `• DO NOT generate or return any actual image.\n`;
-  out += `• DO NOT write a conversational response. Write ONLY the final compiled image-generation prompt description ready to copy.\n`;
-  out += `• Start your response directly with the prompt description.\n\ngenerate`;
+  out += `Generate a single, high-quality, production-ready image that strictly follows all of the information provided above, including:\n\n`;
+  out += `• Canvas Settings\n• Brand Guidelines\n• Brand Identity\n• Color Palette\n• Typography\n• Brand Assets\n• Campaign Content\n• Brand Rules\n• Design Brief\n• Reference Image Analysis (if provided)\n\n`;
+  out += `IMAGE GENERATION REQUIREMENTS\n\n`;
+  out += `• Create a premium, original, commercially usable advertisement.\n`;
+  out += `• Use the uploaded brand hero product as the primary and most visually dominant focal object.\n`;
+  out += `• Use the uploaded official brand logo exactly as provided without distortion, recoloring, stretching, cropping, or modification.\n`;
+  out += `• If a Reference Image Analysis is provided, use it only as inspiration for the overall layout, composition, spacing, visual hierarchy, asset placement, typography positioning, background treatment, lighting style, and design aesthetics while creating a new original design.\n`;
+  out += `• Never recreate, trace, or copy the reference design exactly.\n`;
+  out += `• Preserve the brand identity throughout the entire composition.\n`;
+  out += `• Use only the provided brand color palette.\n`;
+  out += `• Follow the specified typography and font hierarchy.\n`;
+  out += `• Maintain excellent visual hierarchy, spacing, alignment, balance, and consistency.\n`;
+  out += `• Keep all important content inside safe margins.\n`;
+  out += `• Ensure all text is readable, properly aligned, and visually balanced.\n`;
+  out += `• Position the logo, headline, sub-heading, body copy, CTA, and supporting elements professionally.\n`;
+  out += `• Use uploaded assets whenever applicable instead of generating replacements.\n`;
+  out += `• Ensure the hero product remains the primary focus and is never visually overpowered by decorative elements.\n`;
+  out += `• Produce a polished, premium-quality marketing creative suitable for commercial use.\n`;
+  out += `• Ensure the final composition perfectly matches the specified canvas size and platform.\n\n`;
+  out += `STRICT CONSTRAINTS\n\n`;
+  out += `• Do not generate additional products.\n`;
+  out += `• Do not replace the uploaded hero product.\n`;
+  out += `• Do not replace or recreate the uploaded logo.\n`;
+  out += `• Do not distort, stretch, crop, rotate, or modify uploaded assets unless explicitly instructed.\n`;
+  out += `• Do not use colors outside the defined brand palette.\n`;
+  out += `• Do not introduce unrelated objects, decorations, branding elements, or logos.\n`;
+  out += `• Do not generate watermarks, signatures, placeholders, or stock branding.\n`;
+  out += `• Do not generate unreadable, overlapping, duplicated, or malformed text.\n`;
+  out += `• Do not exceed safe margins.\n`;
+  out += `• Do not create low-quality, blurry, pixelated, cluttered, or poorly aligned layouts.\n`;
+  out += `• Do not copy existing advertisements, reference images, or copyrighted layouts exactly.\n\n`;
+  out += `FINAL OBJECTIVE\n\n`;
+  out += `Generate a clean, premium, visually striking, production-ready commercial design that faithfully follows the provided Brand Guidelines, Campaign Content, Brand Rules, Uploaded Assets, and (if available) Reference Image Analysis while remaining completely original and suitable for immediate marketing use.\n`;
 
   if (out.includes('[object Object]')) {
     console.error("WARNING: Detected [object Object] serialization error in generated prompt!");

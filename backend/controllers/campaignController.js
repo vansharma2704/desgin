@@ -1,4 +1,6 @@
 import Campaign from '../models/Campaign.js';
+import Design from '../models/Design.js';
+import Prompt from '../models/Prompt.js';
 import mongoose from 'mongoose';
 
 // @desc    Get all campaigns
@@ -13,20 +15,24 @@ export const getCampaigns = async (req, res, next) => {
     }
     const campaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
 
-    // Enrich with count stats dynamically
-    const enriched = await Promise.all(
-      campaigns.map(async (c) => {
-        const [designCount, promptCount] = await Promise.all([
-          mongoose.model('Design').countDocuments({ campaignId: c._id }),
-          mongoose.model('Prompt').countDocuments({ campaignId: c._id }),
-        ]);
-        return {
-          ...c,
-          designCount,
-          promptCount,
-        };
-      })
-    );
+    // Fast aggregated count queries instead of looping per campaign
+    const [designCounts, promptCounts] = await Promise.all([
+      Design.aggregate([
+        { $group: { _id: '$campaignId', count: { $sum: 1 } } }
+      ]),
+      Prompt.aggregate([
+        { $group: { _id: '$campaignId', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    const designCountMap = new Map(designCounts.map(d => [d._id?.toString(), d.count]));
+    const promptCountMap = new Map(promptCounts.map(p => [p._id?.toString(), p.count]));
+
+    const enriched = campaigns.map(c => ({
+      ...c,
+      designCount: designCountMap.get(c._id.toString()) || 0,
+      promptCount: promptCountMap.get(c._id.toString()) || 0,
+    }));
 
     res.json(enriched);
   } catch (error) {

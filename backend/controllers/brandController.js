@@ -1,4 +1,8 @@
 import Brand from '../models/Brand.js';
+import Campaign from '../models/Campaign.js';
+import Design from '../models/Design.js';
+import Prompt from '../models/Prompt.js';
+import Asset from '../models/Asset.js';
 import mongoose from 'mongoose';
 
 

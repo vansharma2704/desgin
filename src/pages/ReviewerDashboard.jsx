@@ -43,16 +43,27 @@ export default function ReviewerDashboard() {
     try {
       setLoading(true);
       setError('');
-      const [brandsData, campaignsData, designsData] = await Promise.all([
-        brandService.getBrands(),
-        campaignService.getCampaigns(),
-        designService.getDesigns(),
-      ]);
-      setBrands(brandsData);
-      setCampaigns(campaignsData);
-      setDesigns(designsData);
+      const designsData = await designService.getDesigns();
+      const safeDesigns = Array.isArray(designsData) ? designsData : [];
+      setDesigns(safeDesigns);
+
+      // Extract populated brand and campaign objects directly from assigned designs
+      const bMap = new Map();
+      const cMap = new Map();
+      safeDesigns.forEach(d => {
+        if (d.brandId && typeof d.brandId === 'object' && (d.brandId._id || d.brandId.id)) {
+          const id = d.brandId._id || d.brandId.id;
+          bMap.set(id, d.brandId);
+        }
+        if (d.campaignId && typeof d.campaignId === 'object' && (d.campaignId._id || d.campaignId.id)) {
+          const id = d.campaignId._id || d.campaignId.id;
+          cMap.set(id, d.campaignId);
+        }
+      });
+      setBrands(Array.from(bMap.values()));
+      setCampaigns(Array.from(cMap.values()));
     } catch (err) {
-      console.error(err);
+      console.error('loadData error:', err);
       setError('Failed to fetch review data. Please try again.');
     } finally {
       setLoading(false);
@@ -65,14 +76,16 @@ export default function ReviewerDashboard() {
 
   // Helper to resolve pending review status
   const isPending = (status) => {
-    return ['Pending', 'Pending Review', 'Submitted For Review'].includes(status);
+    if (!status) return false;
+    const s = status.trim().toLowerCase();
+    return ['pending', 'pending review', 'submitted for review', 'submitted', 'in review'].includes(s);
   };
 
   // Derived counts for summary cards
   const pendingCount = designs.filter(d => isPending(d.status)).length;
-  const approvedCount = designs.filter(d => d.status === 'Approved').length;
-  const rejectedCount = designs.filter(d => d.status === 'Rejected').length;
-  const changesCount = designs.filter(d => d.status === 'Changes Requested').length;
+  const approvedCount = designs.filter(d => (d.status || '').toLowerCase() === 'approved').length;
+  const rejectedCount = designs.filter(d => (d.status || '').toLowerCase() === 'rejected').length;
+  const changesCount = designs.filter(d => (d.status || '').toLowerCase() === 'changes requested').length;
 
   // Filter & Sort designs
   const getFilteredDesigns = () => {
@@ -82,21 +95,21 @@ export default function ReviewerDashboard() {
     if (activeTab === 'queue') {
       list = list.filter(d => isPending(d.status));
     } else if (activeTab === 'approved') {
-      list = list.filter(d => d.status === 'Approved');
+      list = list.filter(d => (d.status || '').toLowerCase() === 'approved');
     } else if (activeTab === 'rejected') {
-      list = list.filter(d => d.status === 'Rejected');
+      list = list.filter(d => (d.status || '').toLowerCase() === 'rejected');
     } else if (activeTab === 'changes') {
-      list = list.filter(d => d.status === 'Changes Requested');
+      list = list.filter(d => (d.status || '').toLowerCase() === 'changes requested');
     } else if (activeTab === 'archive') {
       // Completed history
-      list = list.filter(d => ['Approved', 'Rejected', 'Changes Requested', 'Archived'].includes(d.status));
+      list = list.filter(d => ['approved', 'rejected', 'changes requested', 'archived'].includes((d.status || '').toLowerCase()));
     }
 
     // Top Brand Filter
     if (brandFilter !== 'all') {
       list = list.filter(d => {
         const bId = d.brandId?._id || d.brandId;
-        return bId === brandFilter;
+        return bId === brandFilter || bId?.toString() === brandFilter;
       });
     }
 
@@ -104,13 +117,13 @@ export default function ReviewerDashboard() {
     if (campaignFilter !== 'all') {
       list = list.filter(d => {
         const cId = d.campaignId?._id || d.campaignId;
-        return cId === campaignFilter;
+        return cId === campaignFilter || cId?.toString() === campaignFilter;
       });
     }
 
     // Platform Filter
     if (platformFilter !== 'all') {
-      list = list.filter(d => d.platform === platformFilter);
+      list = list.filter(d => (d.platform || '').toLowerCase() === platformFilter.toLowerCase());
     }
 
     // Status Filter (Only on Dashboard/Archive tabs)
@@ -118,7 +131,7 @@ export default function ReviewerDashboard() {
       if (statusFilter === 'Pending') {
         list = list.filter(d => isPending(d.status));
       } else {
-        list = list.filter(d => d.status === statusFilter);
+        list = list.filter(d => (d.status || '').toLowerCase() === statusFilter.toLowerCase());
       }
     }
 
@@ -127,7 +140,8 @@ export default function ReviewerDashboard() {
       if (reviewerFilter === 'me') {
         list = list.filter(d => {
           const revId = d.reviewer?._id || d.reviewer;
-          return revId === user?._id;
+          const uId = user?._id || user?.id;
+          return revId && uId && revId.toString() === uId.toString();
         });
       } else if (reviewerFilter === 'unassigned') {
         list = list.filter(d => !d.reviewer);
@@ -152,12 +166,14 @@ export default function ReviewerDashboard() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(d => {
-        const name = (d.name || '').toLowerCase();
-        const brandName = (brands.find(b => (b._id === d.brandId || b.id === d.brandId))?.name || '').toLowerCase();
-        const campaignName = (campaigns.find(c => (c._id === d.campaignId || c.id === d.campaignId))?.name || '').toLowerCase();
-        // Since submittedBy is typically editor user info, we match reviewer / design brief
-        const brief = (d.designBrief || '').toLowerCase();
-        return name.includes(q) || brandName.includes(q) || campaignName.includes(q) || brief.includes(q);
+        const name = (d.name || d.title || '').toLowerCase();
+        const dBrandId = d.brandId?._id || d.brandId;
+        const dCampaignId = d.campaignId?._id || d.campaignId;
+        const brandName = (brands.find(b => (b._id === dBrandId || b.id === dBrandId || b._id?.toString() === dBrandId?.toString()))?.name || d.brandId?.name || d.brandName || '').toLowerCase();
+        const campaignName = (campaigns.find(c => (c._id === dCampaignId || c.id === dCampaignId || c._id?.toString() === dCampaignId?.toString()))?.name || d.campaignId?.name || d.campaignName || '').toLowerCase();
+        const brief = (d.designBrief || d.prompt || '').toLowerCase();
+        const creatorName = (d.createdBy?.name || '').toLowerCase();
+        return name.includes(q) || brandName.includes(q) || campaignName.includes(q) || brief.includes(q) || creatorName.includes(q);
       });
     }
 
@@ -766,13 +782,16 @@ export default function ReviewerDashboard() {
             </div>
             <div>
               <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#1E293B', margin: 0 }}>
-                {activeTab === 'queue' ? 'No designs waiting for review.' :
+                {designs.length === 0 ? 'No designs assigned to you.' :
+                 activeTab === 'queue' ? 'No designs waiting for review.' :
                  activeTab === 'approved' ? 'No approved designs.' :
                  activeTab === 'rejected' ? 'No rejected designs.' :
                  activeTab === 'changes' ? 'No designs requesting changes.' :
                  'No review history matches found.'}
               </h3>
-              <p style={{ fontSize: '13.5px', color: '#64748B', marginTop: '6px' }}>Verify your filters or check other workflow categories.</p>
+              <p style={{ fontSize: '13.5px', color: '#64748B', marginTop: '6px' }}>
+                {designs.length === 0 ? 'When an editor submits a design to your reviewer account, it will appear here.' : 'Verify your filters or check other workflow categories.'}
+              </p>
             </div>
           </div>
         ) : (
@@ -829,8 +848,18 @@ export default function ReviewerDashboard() {
                       )}
                       
                       {/* Floating status tag */}
-                      <div style={{ position: 'absolute', top: '12px', right: '12px' }}>
+                      <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '6px' }}>
                         {renderStatusBadge(d.status)}
+                        <span style={{
+                          background: d.submissionType === 'Uploaded Design' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(108, 76, 241, 0.12)',
+                          color: d.submissionType === 'Uploaded Design' ? '#2563EB' : '#6C4CF1',
+                          padding: '4px 10px',
+                          borderRadius: '30px',
+                          fontSize: '11.5px',
+                          fontWeight: 700
+                        }}>
+                          {d.submissionType === 'Uploaded Design' ? 'Uploaded' : 'AI Generated'}
+                        </span>
                       </div>
                     </div>
 

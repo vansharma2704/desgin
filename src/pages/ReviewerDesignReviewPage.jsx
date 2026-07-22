@@ -39,8 +39,13 @@ export default function ReviewerDesignReviewPage() {
     try {
       setLoading(true);
       setError('');
-      const designs = await designService.getDesigns();
-      const currentDesign = designs.find(d => d._id === designId);
+      let currentDesign = null;
+      try {
+        currentDesign = await designService.getDesignById(designId);
+      } catch (e) {
+        const designs = await designService.getDesigns();
+        currentDesign = designs.find(d => d._id === designId);
+      }
       
       if (!currentDesign) {
         throw new Error('Design submission not found.');
@@ -50,8 +55,8 @@ export default function ReviewerDesignReviewPage() {
 
       // Load associated Brand & Campaign
       const [brands, campaigns] = await Promise.all([
-        brandService.getBrands(),
-        campaignService.getCampaigns()
+        brandService.getBrands().catch(() => []),
+        campaignService.getCampaigns().catch(() => [])
       ]);
 
       const brandIdStr = currentDesign.brandId?._id || currentDesign.brandId;
@@ -79,17 +84,14 @@ export default function ReviewerDesignReviewPage() {
     loadDesignDetails();
   }, [designId]);
 
-  // Auto-assign the current reviewer when they open a Pending Review design
+  // Auto-assign ONLY if the design currently has no reviewer assigned
   useEffect(() => {
     if (!design || !user) return;
     const isPending = ['Pending', 'Pending Review'].includes(design.status);
     const existingReviewerId = design.reviewer?._id || design.reviewer;
-    const alreadyAssigned = existingReviewerId && (
-      existingReviewerId === user._id ||
-      existingReviewerId === user.id
-    );
-    if (isPending && !alreadyAssigned) {
-      // Assign this reviewer silently
+    
+    // Only assign if design is pending AND completely unassigned
+    if (isPending && !existingReviewerId) {
       designService.updateDesign(designId, { reviewer: user._id || user.id })
         .then(updated => setDesign(updated))
         .catch(err => console.error('Auto-assign reviewer failed:', err));

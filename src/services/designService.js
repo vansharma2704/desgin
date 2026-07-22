@@ -11,6 +11,15 @@ export const designService = {
     return data;
   },
 
+  async getDesignById(id) {
+    const response = await fetch(`${API_URL}/${id}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch design');
+    }
+    return data;
+  },
+
   async createDesign(designData) {
     const response = await fetch(API_URL, {
       method: 'POST',

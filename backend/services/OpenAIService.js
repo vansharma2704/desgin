@@ -29,9 +29,17 @@ class OpenAIService {
       throw new Error('OpenAI client is not initialized. Please verify your OPENAI_API_KEY.');
     }
 
-        text: `Analyze the provided reference image(s) as an experienced Creative Director, Senior Computer Vision Engineer, and Layout Inspector.
-Perform a strict visual analysis of what is ACTUALLY visible across multiple stages of analysis. Never assume, guess, or hallucinate.
-If an attribute is not visible or cannot be detected, return "Not Detected" for that value.
+    const content = [
+      {
+        type: 'text',
+        text: `Analyze the provided reference image(s) as an experienced Creative Director, Senior Computer Vision Engineer, and Visual Design Analyst.
+Perform a strict visual analysis of what is ACTUALLY visible across multiple stages of analysis. Ground every conclusion strictly in visible evidence from the image (e.g., text content, icons, objects, products, people).
+Never guess, assume, use generic templates, or classify based on layout style alone.
+If an attribute is not visible or cannot be confidently detected, return "Unknown" for that value. Accuracy is more important than completeness.
+
+Before compiling your response, perform a validation pass and self-check:
+1. Ask internally: "Can every conclusion be justified by something visible in the image?" If the answer is NO, replace the value with "Unknown".
+2. Ensure there are no contradictions (e.g., if the image contains doctors and medical icons, the industry cannot be Sports/Athletic, and design style must include Healthcare/Medical).
 
 Every description field must contain a concise, structured list of short professional bullet points separated by newlines.
 - Maximum 4-5 bullet points.
@@ -150,7 +158,7 @@ Return a structured JSON object matching this schema exactly. Every section and 
   "shapes": { "value": ["• Rounded card panels"], "confidence": 95, "reason": "Shapes detection details" }
 }
 
-Respond ONLY with the raw JSON object. Do not wrap in markdown ```json or any other formatting text.`
+Respond ONLY with the raw JSON object. Do not wrap in markdown \`\`\`json or any other formatting text.`
       }
     ];
 
@@ -166,7 +174,7 @@ Respond ONLY with the raw JSON object. Do not wrap in markdown ```json or any ot
 
     const startTime = Date.now();
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.5',
       messages: [
         {
           role: 'user',

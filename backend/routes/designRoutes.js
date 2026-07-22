@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDesigns, createDesign, updateDesign, deleteDesign, migrateDraftsToCompleted, claimMyDesigns } from '../controllers/designController.js';
+import { getDesigns, getDesignById, createDesign, updateDesign, deleteDesign, migrateDraftsToCompleted, claimMyDesigns } from '../controllers/designController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -17,6 +17,7 @@ router.route('/')
   .post(createDesign);
 
 router.route('/:id')
+  .get(getDesignById)
   .put(updateDesign)
   .delete(deleteDesign);
 

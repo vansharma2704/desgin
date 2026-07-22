@@ -29,20 +29,22 @@ export const signupUser = async (req, res, next) => {
       throw new Error('All fields (name, email, password, role) are required');
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     if (password.length < 8) {
       res.status(400);
       throw new Error('Password must be at least 8 characters');
     }
 
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ email: cleanEmail });
     if (userExists) {
       res.status(400);
       throw new Error('User already exists');
     }
 
     const user = await User.create({
-      name,
-      email,
+      name: name.trim(),
+      email: cleanEmail,
       password,
       role,
     });
@@ -77,7 +79,9 @@ export const loginUser = async (req, res, next) => {
       throw new Error('Please provide email and password');
     }
 
-    const user = await User.findOne({ email });
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
+
     if (user && (await user.comparePassword(password))) {
       const token = generateToken(res, user._id);
       res.json({

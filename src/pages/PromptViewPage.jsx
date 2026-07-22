@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, Download, Sparkles, Check, Search } from 'lucide-react';
+import { ArrowLeft, Copy, Download, Sparkles, Check, Search, BookmarkCheck } from 'lucide-react';
+import designService from '../services/designService';
 
 export default function PromptViewPage() {
   const location = useLocation();
@@ -9,16 +10,46 @@ export default function PromptViewPage() {
   const [promptText] = useState(state.prompt || '');
   const [copied, setCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Stats
-  const charCount = promptText.length;
-  const wordCount = promptText.trim().split(/\s+/).filter(Boolean).length;
-  const tokenEstimate = Math.ceil(charCount / 4);
+  const [savingDesign, setSavingDesign] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(promptText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveDesign = async () => {
+    setSavingDesign(true);
+    try {
+      if (state.activeDraftId) {
+        await designService.updateDesign(state.activeDraftId, {
+          isDraft: false,
+          isSaved: true,
+          status: 'Completed',
+          prompt: promptText
+        });
+      } else if (state.brandId && state.selectedCampaignId) {
+        await designService.createDesign({
+          brandId: state.brandId,
+          campaignId: state.selectedCampaignId,
+          name: state.designTitle || 'Untitled Design',
+          platform: state.platform?.name || 'Instagram',
+          canvasSize: `${state.platform?.width || 1080}x${state.platform?.height || 1080}`,
+          prompt: promptText,
+          isDraft: false,
+          isSaved: true,
+          status: 'Completed',
+          imageUrl: state.generatedImageUrl || ''
+        });
+      }
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err) {
+      alert(err.message || 'Failed to save design');
+    } finally {
+      setSavingDesign(false);
+    }
   };
 
   const downloadFile = (content, filename, type) => {
@@ -150,30 +181,33 @@ export default function PromptViewPage() {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Statistics & Actions */}
+          {/* RIGHT COLUMN: Actions & Save */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Stats Card */}
-            <div className="card" style={{ padding: 20, borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)' }}>Prompt Statistics</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-3)' }}>Characters</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{charCount}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-3)' }}>Words</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{wordCount}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-3)' }}>Estimated Tokens</span>
-                  <span style={{ fontWeight: 600, color: '#6C4CF1' }}>{tokenEstimate}</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Download Actions Card */}
-            <div className="card" style={{ padding: 20, borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)', marginBottom: 4 }}>Actions</div>
+            {/* Save & Actions Card */}
+            <div className="card" style={{ padding: 20, borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)', marginBottom: 2 }}>Actions</div>
+
+              <button
+                className="btn btn-primary btn-full"
+                onClick={handleSaveDesign}
+                disabled={savingDesign || savedSuccess}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  boxShadow: '0 4px 14px rgba(108, 76, 241, 0.25)',
+                  background: savedSuccess ? '#059669' : '#6C4CF1'
+                }}
+              >
+                {savedSuccess ? <><Check size={16} /> Saved to Library!</> : <><BookmarkCheck size={16} /> {savingDesign ? 'Saving Design...' : 'Save Design to Library'}</>}
+              </button>
+
               <button
                 className="btn btn-secondary btn-full"
                 onClick={() => downloadFile(promptText, 'compiled_prompt.txt', 'text/plain')}

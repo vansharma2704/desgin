@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles, Copy, Edit2, Check, Save, RefreshCw,
@@ -10,6 +10,7 @@ import aiService from '../services/aiService';
 import authService from '../services/authService';
 import designService from '../services/designService';
 import { addNotification } from '../utils/notifications';
+import PlatformPickerModal from './PlatformPickerModal';
 
 const DEFAULT_GUIDELINES = `You are an expert graphic designer and creative director.
 
@@ -31,17 +32,17 @@ Always:
 
 const CHECKLIST_ATTRIBUTES = [
   { key: 'industry', label: 'Detected Industry', icon: '🏢', category: 'branding' },
-  { key: 'design_type', label: 'Design Overview', icon: '📝', category: 'structure' },
+  { key: 'design_type', label: 'Asset Placement', icon: '📍', category: 'structure' },
   { key: 'color_palette', label: 'Colors', icon: '🎨', category: 'branding' },
   { key: 'typography', label: 'Typography', icon: '✍️', category: 'content' },
   { key: 'layout', label: 'Layout', icon: '📐', category: 'structure' },
   { key: 'composition', label: 'Composition', icon: '🧩', category: 'artistic' },
   { key: 'background', label: 'Background', icon: '🖼️', category: 'structure' },
   { key: 'images', label: 'Objects', icon: '📦', category: 'artistic' },
-  { key: 'icons', label: 'Icons', icon: '✨', category: 'content' },
+  { key: 'icons', label: 'Icons', icon: '⭐', category: 'content' },
   { key: 'branding', label: 'Branding', icon: '🏷️', category: 'branding' },
   { key: 'lighting', label: 'Lighting', icon: '💡', category: 'artistic' },
-  { key: 'style', label: 'Design Style', icon: '🎭', category: 'branding' }
+  { key: 'style', label: 'Design Style', icon: '🎨', category: 'branding' }
 ];
 
 /* ── Collapsible section ───────────────────────────── */
@@ -119,25 +120,47 @@ function RefCard({ refImage, onRemove }) {
 export default function PromptBuilder({ brands, selectedBrandId, setSelectedBrandId, savedPlatform, onSavePrompt, campaignId, resumeDraft }) {
   const brand = brands.find(b => b.id === selectedBrandId || b._id === selectedBrandId) || brands[0];
   const navigate = useNavigate();
-  const [isCustomEdited, setIsCustomEdited] = useState(resumeDraft?.isCustomEdited || false);
-  const [platform, setPlatform] = useState(
-    resumeDraft?.platform
+  const activeBrandId = selectedBrandId || (brand?._id || brand?.id);
+  const [selectedCampaignId, setSelectedCampaignId] = useState(() => {
+    return resumeDraft?.campaignId?._id || resumeDraft?.campaignId || campaignId || localStorage.getItem(`prompt_builder_${activeBrandId}_last_campaign_id`) || '';
+  });
+  const stateKey = (activeBrandId && selectedCampaignId) ? `prompt_builder_${activeBrandId}_${selectedCampaignId}_state` : null;
+
+  const getCachedField = useCallback((key, fallback) => {
+    if (stateKey) {
+      try {
+        const cached = localStorage.getItem(stateKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed[key] !== undefined) return parsed[key];
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return fallback;
+  }, [stateKey]);
+
+  const [isCustomEdited, setIsCustomEdited] = useState(() => getCachedField('isCustomEdited', resumeDraft?.isCustomEdited || false));
+  const [platform, setPlatform] = useState(() => 
+    getCachedField('platform', resumeDraft?.platform
       ? PLATFORMS.find(p => p.name === resumeDraft.platform) || PLATFORMS[0]
       : savedPlatform || PLATFORMS[0]
+    )
   );
 
   // Step Wizard state
-  const [currentStep, setCurrentStep] = useState(resumeDraft?.currentStep || 1);
+  const [currentStep, setCurrentStep] = useState(() => getCachedField('currentStep', resumeDraft?.currentStep || 1));
 
   // Content
-  const [designTitle, setDesignTitle] = useState(resumeDraft?.name || '');
-  const [heading,     setHeading]     = useState(resumeDraft?.heading || '');
-  const [subHeading,  setSubHeading]  = useState(resumeDraft?.subHeading || '');
-  const [body,        setBody]        = useState(resumeDraft?.bodyText || '');
-  const [cta,         setCta]         = useState(resumeDraft?.ctaText || '');
+  const [designTitle, setDesignTitle] = useState(() => getCachedField('designTitle', resumeDraft?.name || ''));
+  const [heading,     setHeading]     = useState(() => getCachedField('heading', resumeDraft?.heading || ''));
+  const [subHeading,  setSubHeading]  = useState(() => getCachedField('subHeading', resumeDraft?.subHeading || ''));
+  const [body,        setBody]        = useState(() => getCachedField('body', resumeDraft?.bodyText || ''));
+  const [cta,         setCta]         = useState(() => getCachedField('cta', resumeDraft?.ctaText || ''));
 
   // Design images for this specific design (per-prompt uploads)
-  const [designImages, setDesignImages] = useState({ products: [], environments: [], icons: [] });
+  const [designImages, setDesignImages] = useState(() => getCachedField('designImages', { products: [], environments: [], icons: [] }));
 
   const addDesignImages = (key, files) => {
     const items = Array.from(files).map(f => ({
@@ -155,19 +178,34 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [assetChecked, setAssetChecked] = useState({});
   useEffect(() => {
     if (!brand?.assets) return;
+    const cached = getCachedField('assetChecked', null);
+    if (cached) {
+      setAssetChecked(cached);
+      return;
+    }
     const init = {};
     brand.assets.forEach(a => { init[a.id] = true; });
     setAssetChecked(init);
-  }, [selectedBrandId, brand]);
+  }, [selectedBrandId, brand, getCachedField]);
 
   // Colors
-  const [colorMode,    setColorMode]    = useState('brand');
-  const [customColors, setCustomColors] = useState({ background: '#ffffff', heading: '#000000', subheading: '#333333', body: '#555555' });
+  const [colorMode,    setColorMode]    = useState(() => getCachedField('colorMode', 'brand'));
+  const [customColors, setCustomColors] = useState(() => getCachedField('customColors', { background: '#ffffff', heading: '#000000', subheading: '#333333', body: '#555555' }));
+
+  // Typography, Style & Tone
+  const FONT_OPTIONS = ['Inter', 'Roboto', 'Outfit', 'Plus Jakarta Sans', 'Playfair Display', 'Barlow Condensed', 'Space Grotesk', 'Montserrat', 'Poppins', 'Open Sans', 'Lato', 'Lora', 'DM Sans'];
+  const [typographyMode, setTypographyMode] = useState(() => getCachedField('typographyMode', 'brand'));
+  const [customHeadingFont, setCustomHeadingFont] = useState(() => getCachedField('customHeadingFont', 'Inter'));
+  const [customSubHeadingFont, setCustomSubHeadingFont] = useState(() => getCachedField('customSubHeadingFont', 'Inter'));
+  const [customBodyFont, setCustomBodyFont] = useState(() => getCachedField('customBodyFont', 'Inter'));
+
+  const [brandStyle, setBrandStyle] = useState(() => getCachedField('brandStyle', resumeDraft?.brandStyle || 'Modern'));
+  const [brandTone, setBrandTone] = useState(() => getCachedField('brandTone', resumeDraft?.brandTone || 'Professional'));
 
   // Reference images & analysis checkboxes
-  const [refImages,    setRefImages]    = useState([]);
+  const [refImages,    setRefImages]    = useState(() => getCachedField('refImages', []));
   const [refAnalyzing, setRefAnalyzing] = useState(false);
-  const [refSettings,  setRefSettings]  = useState({
+  const [refSettings,  setRefSettings]  = useState(() => getCachedField('refSettings', {
     industry: true,
     design_type: true,
     color_palette: true,
@@ -180,28 +218,92 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
     branding: true,
     lighting: true,
     style: true
-  });
+  }));
 
   // Guidelines
-  const [guidelines, setGuidelines] = useState(DEFAULT_GUIDELINES);
+  const [guidelines, setGuidelines] = useState(() => getCachedField('guidelines', DEFAULT_GUIDELINES));
+  const [showBottomFilters, setShowBottomFilters] = useState(true);
+  const [enableReferenceAnalysis, setEnableReferenceAnalysis] = useState(() => getCachedField('enableReferenceAnalysis', true));
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
 
   // Output
-  const [prompt,    setPrompt]    = useState('');
+  const [prompt,    setPrompt]    = useState(() => getCachedField('prompt', ''));
   const [isEditing, setIsEditing] = useState(false);
   const [copied,    setCopied]    = useState(false);
   const [saved,     setSaved]     = useState(false);
 
-  const [activeDraftId, setActiveDraftId] = useState(resumeDraft?._id || null);
+  const [activeDraftId, setActiveDraftId] = useState(() => getCachedField('activeDraftId', resumeDraft?._id || null));
   // Track the saved status so auto-save never overwrites a review-lifecycle status
-  const [activeDraftStatus, setActiveDraftStatus] = useState(resumeDraft?.status || 'Draft');
+  const [activeDraftStatus, setActiveDraftStatus] = useState(() => getCachedField('activeDraftStatus', resumeDraft?.status || 'Draft'));
   const [generatingImage, setGeneratingImage] = useState(false);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState(resumeDraft?.imageUrl || resumeDraft?.generatedImage || '');
+  const [generatedImageUrl, setGeneratedImageUrl] = useState(() => getCachedField('generatedImageUrl', resumeDraft?.imageUrl || resumeDraft?.generatedImage || ''));
   const [generationError, setGenerationError] = useState('');
 
   const [campaigns, setCampaigns] = useState([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState(
-    resumeDraft?.campaignId?._id || resumeDraft?.campaignId || ''
-  );
+
+  // Automatic saving state effect
+  useEffect(() => {
+    if (!stateKey) return;
+    const stateObj = {
+      designTitle,
+      heading,
+      subHeading,
+      body,
+      cta,
+      designImages,
+      assetChecked,
+      colorMode,
+      customColors,
+      typographyMode,
+      customHeadingFont,
+      customSubHeadingFont,
+      customBodyFont,
+      brandStyle,
+      brandTone,
+      refImages,
+      refSettings,
+      guidelines,
+      enableReferenceAnalysis,
+      platform,
+      currentStep,
+      prompt,
+      isCustomEdited,
+      generatedImageUrl,
+      activeDraftId,
+      activeDraftStatus,
+      selectedCampaignId
+    };
+    localStorage.setItem(stateKey, JSON.stringify(stateObj));
+  }, [
+    stateKey,
+    designTitle,
+    heading,
+    subHeading,
+    body,
+    cta,
+    designImages,
+    assetChecked,
+    colorMode,
+    customColors,
+    typographyMode,
+    customHeadingFont,
+    customSubHeadingFont,
+    customBodyFont,
+    brandStyle,
+    brandTone,
+    refImages,
+    refSettings,
+    guidelines,
+    enableReferenceAnalysis,
+    platform,
+    currentStep,
+    prompt,
+    isCustomEdited,
+    generatedImageUrl,
+    activeDraftId,
+    activeDraftStatus,
+    selectedCampaignId
+  ]);
   // Reviewer search and submission states
   const [emailQuery, setEmailQuery] = useState('');
   const [reviewers, setReviewers] = useState([]);
@@ -209,10 +311,56 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [searchingReviewers, setSearchingReviewers] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
+  const [explicitSaving, setExplicitSaving] = useState(false);
+  const [explicitSaveSuccess, setExplicitSaveSuccess] = useState(false);
+
+  const handleExplicitSaveDesign = async () => {
+    const activeBrandId = selectedBrandId || (brand?._id || brand?.id);
+    if (!activeBrandId || !selectedCampaignId) {
+      alert('Please ensure you have selected a brand and campaign first.');
+      return;
+    }
+    setExplicitSaving(true);
+    try {
+      const payload = {
+        brandId: activeBrandId,
+        campaignId: selectedCampaignId,
+        name: designTitle || 'Untitled Design',
+        platform: platform?.name || 'Instagram',
+        canvasSize: `${platform?.width || 1080}x${platform?.height || 1080}`,
+        prompt,
+        heading,
+        subHeading,
+        bodyText: body,
+        ctaText: cta,
+        currentStep,
+        isDraft: false,
+        isSaved: true,
+        status: 'Completed',
+        generatedImage: generatedImageUrl || '',
+        imageUrl: generatedImageUrl || ''
+      };
+
+      if (activeDraftId) {
+        await designService.updateDesign(activeDraftId, payload);
+      } else {
+        const savedDesign = await designService.createDesign(payload);
+        setActiveDraftId(savedDesign._id);
+      }
+      setSaved(true);
+      setExplicitSaveSuccess(true);
+      setTimeout(() => setExplicitSaveSuccess(false), 3000);
+    } catch (err) {
+      alert('Failed to save design: ' + err.message);
+    } finally {
+      setExplicitSaving(false);
+    }
+  };
 
   // Redesign modals & connection states
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [isPlatformPickerOpen, setIsPlatformPickerOpen] = useState(false);
   const [openaiKeyInput, setOpenaiKeyInput] = useState('');
   const [isApiKeyConnected, setIsApiKeyConnected] = useState(false);
 
@@ -226,6 +374,35 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [expandedCards, setExpandedCards] = useState({});
+
+  // Caching original analysis snapshot and handling restore confirm
+  useEffect(() => {
+    const needsInit = refImages.some(img => !img.originalAnalysis && img.analysis);
+    if (needsInit) {
+      setRefImages(prev => prev.map(img => {
+        if (!img.originalAnalysis && img.analysis) {
+          return { ...img, originalAnalysis: JSON.parse(JSON.stringify(img.analysis)) };
+        }
+        return img;
+      }));
+    }
+  }, [refImages]);
+
+  const handleRestoreConfirm = () => {
+    const activeRef = refImages.find(r => r.id === selectedRefId);
+    if (!activeRef?.originalAnalysis) {
+      setIsRestoreModalOpen(false);
+      return;
+    }
+    const restored = JSON.parse(JSON.stringify(activeRef.originalAnalysis));
+    setRefImages(prev => prev.map(img => {
+      if (img.id === activeRef.id) {
+        return { ...img, analysis: restored };
+      }
+      return img;
+    }));
+    setIsRestoreModalOpen(false);
+  };
 
   useEffect(() => {
     if (refImages.length > 0) {
@@ -255,6 +432,22 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
     }, 400);
     return () => clearTimeout(delayDebounce);
   }, [emailQuery]);
+
+  // Global Ctrl+F keyboard shortcut to focus inspector search bar
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        const input = document.getElementById('inspector-search-input');
+        if (input) {
+          e.preventDefault();
+          input.focus();
+          input.select();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleSendForReview = async (e) => {
     e.preventDefault();
@@ -325,10 +518,14 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
       try {
         const list = await campaignService.getCampaigns(brandId);
         setCampaigns(list);
+        
+        const cachedCampaignId = localStorage.getItem(`prompt_builder_${brandId}_last_campaign_id`);
         if (resumeDraft?.campaignId) {
           setSelectedCampaignId(resumeDraft.campaignId?._id || resumeDraft.campaignId);
         } else if (campaignId) {
           setSelectedCampaignId(campaignId);
+        } else if (cachedCampaignId && list.some(c => c._id === cachedCampaignId)) {
+          setSelectedCampaignId(cachedCampaignId);
         } else if (list.length > 0) {
           setSelectedCampaignId(list[0]._id);
         } else {
@@ -340,6 +537,51 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
     };
     fetchCampaigns();
   }, [selectedBrandId, brand, campaignId, resumeDraft]);
+
+  // Sync selectedCampaignId and restore cached state on change
+  useEffect(() => {
+    const brandId = selectedBrandId || (brand?._id || brand?.id);
+    if (!brandId || !selectedCampaignId) return;
+    localStorage.setItem(`prompt_builder_${brandId}_last_campaign_id`, selectedCampaignId);
+
+    const key = `prompt_builder_${brandId}_${selectedCampaignId}_state`;
+    try {
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed) {
+          if (parsed.designTitle !== undefined) setDesignTitle(parsed.designTitle);
+          if (parsed.heading !== undefined) setHeading(parsed.heading);
+          if (parsed.subHeading !== undefined) setSubHeading(parsed.subHeading);
+          if (parsed.body !== undefined) setBody(parsed.body);
+          if (parsed.cta !== undefined) setCta(parsed.cta);
+          if (parsed.designImages !== undefined) setDesignImages(parsed.designImages);
+          if (parsed.assetChecked !== undefined) setAssetChecked(parsed.assetChecked);
+          if (parsed.colorMode !== undefined) setColorMode(parsed.colorMode);
+          if (parsed.customColors !== undefined) setCustomColors(parsed.customColors);
+          if (parsed.typographyMode !== undefined) setTypographyMode(parsed.typographyMode);
+          if (parsed.customHeadingFont !== undefined) setCustomHeadingFont(parsed.customHeadingFont);
+          if (parsed.customSubHeadingFont !== undefined) setCustomSubHeadingFont(parsed.customSubHeadingFont);
+          if (parsed.customBodyFont !== undefined) setCustomBodyFont(parsed.customBodyFont);
+          if (parsed.brandStyle !== undefined) setBrandStyle(parsed.brandStyle);
+          if (parsed.brandTone !== undefined) setBrandTone(parsed.brandTone);
+          if (parsed.refImages !== undefined) setRefImages(parsed.refImages);
+          if (parsed.refSettings !== undefined) setRefSettings(parsed.refSettings);
+          if (parsed.guidelines !== undefined) setGuidelines(parsed.guidelines);
+          if (parsed.enableReferenceAnalysis !== undefined) setEnableReferenceAnalysis(parsed.enableReferenceAnalysis);
+          if (parsed.platform !== undefined) setPlatform(parsed.platform);
+          if (parsed.currentStep !== undefined) setCurrentStep(parsed.currentStep);
+          if (parsed.prompt !== undefined) setPrompt(parsed.prompt);
+          if (parsed.isCustomEdited !== undefined) setIsCustomEdited(parsed.isCustomEdited);
+          if (parsed.generatedImageUrl !== undefined) setGeneratedImageUrl(parsed.generatedImageUrl);
+          if (parsed.activeDraftId !== undefined) setActiveDraftId(parsed.activeDraftId);
+          if (parsed.activeDraftStatus !== undefined) setActiveDraftStatus(parsed.activeDraftStatus);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load cached project state:', e);
+    }
+  }, [selectedBrandId, brand, selectedCampaignId]);
 
   // Debounced Auto-Save Hook
   useEffect(() => {
@@ -360,7 +602,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
           bodyText: body,
           ctaText: cta,
           currentStep,
-          isDraft: false,
+          isDraft: true,
           // Only mark Completed if the design is still in a pre-review state.
           // Never overwrite statuses that belong to the review lifecycle.
           ...(!['Pending', 'Pending Review', 'Submitted For Review', 'Approved', 'Rejected', 'Changes Requested', 'Archived'].includes(activeDraftStatus) && {
@@ -466,10 +708,22 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
 
   const compile = useCallback(() => {
     if (!brand || isCustomEdited) return;
+    const activeTypography = typographyMode === 'custom'
+      ? { heading: customHeadingFont, subheading: customSubHeadingFont, body: customBodyFont }
+      : brand?.typography;
+
+    const compiledBrand = {
+      ...brand,
+      typography: activeTypography || brand.typography,
+      style: brandStyle || brand.style,
+      tone: brandTone || brand.tone
+    };
+
     const text = generatePrompt({
-      brand, platform,
+      brand: compiledBrand,
+      platform,
       designTitle, heading, subHeading, body, cta,
-      referenceImages: refImages,
+      referenceImages: enableReferenceAnalysis ? refImages : [],
       includedAssets: buildIncludedAssets(),
       systemGuidelines: guidelines,
       colorMode,
@@ -478,7 +732,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
     });
     setPrompt(text);
     setSaved(false);
-  }, [brand, platform, designTitle, heading, subHeading, body, cta, refImages, buildIncludedAssets, guidelines, colorMode, customColors, designImages, refSettings, isCustomEdited]);
+  }, [brand, platform, designTitle, heading, subHeading, body, cta, refImages, buildIncludedAssets, guidelines, colorMode, customColors, designImages, refSettings, isCustomEdited, typographyMode, customHeadingFont, customSubHeadingFont, customBodyFont, brandStyle, brandTone, enableReferenceAnalysis]);
 
   useEffect(() => {
     // If returning from edit with a custom prompt, set it here
@@ -892,21 +1146,17 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
       setRefAnalyzing(false);
 
       const activeBrandId = brand?._id || brand?.id;
-      const validBase64s = base64s.filter(Boolean);
       
-      if (validBase64s.length > 0 && activeBrandId && selectedCampaignId) {
-        try {
-          // Analyze once, store structured Style Memory in Campaign
-          const res = await aiService.analyzeStyle(validBase64s, activeBrandId, selectedCampaignId);
-          console.log("Style memory successfully stored on backend:", res);
-          
-          if (res && res.success && res.styleMemory) {
-            const sm = res.styleMemory;
-            setRefImages(prev => {
-              // Update only the newly added references in this batch
-              const newlyAddedIds = new Set(completedRefs.map(r => r.id));
-              return prev.map(item => {
-                if (newlyAddedIds.has(item.id)) {
+      if (activeBrandId && selectedCampaignId) {
+        completedRefs.forEach(async (ref, idx) => {
+          const b64 = base64s[idx];
+          if (!b64) return;
+          try {
+            // Call backend API separately for each uploaded reference image
+            const res = await aiService.analyzeStyle([b64], activeBrandId, selectedCampaignId);
+            if (res && res.success && res.styleMemory) {
+              setRefImages(prev => prev.map(item => {
+                if (item.id === ref.id) {
                   const localPalette = item.analysis?.color_palette;
                   return {
                     ...item,
@@ -917,12 +1167,12 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                   };
                 }
                 return item;
-              });
-            });
+              }));
+            }
+          } catch (err) {
+            console.error("Backend style analysis failed for ref ID:", ref.id, err);
           }
-        } catch (err) {
-          console.error("Backend style analysis failed:", err);
-        }
+        });
       }
     });
   };
@@ -947,15 +1197,16 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
   const allChecked = Object.values(refSettings).every(Boolean);
 
   const steps = [
-    { num: 1, label: 'Scope & Colors' },
-    { num: 2, label: 'Content System' },
-    { num: 3, label: 'Design Uploads' },
-    { num: 4, label: 'Guidelines & Refs' },
-    { num: 5, label: 'Final Prompt' }
+    { num: 1, label: 'Scope' },
+    { num: 2, label: 'Style' },
+    { num: 3, label: 'Content' },
+    { num: 4, label: 'Uploads' },
+    { num: 5, label: 'Reference & Guidelines' },
+    { num: 6, label: 'Review & Generate' }
   ];
 
   return (
-    <div className="page" style={{ maxWidth: currentStep === 5 ? 1700 : 960, width: currentStep === 5 ? '90%' : '100%', margin: '0 auto', transition: 'all 0.2s ease-in-out' }}>
+    <div className="page" style={{ maxWidth: (currentStep === 5 || currentStep === steps.length) ? 1700 : 960, width: (currentStep === 5 || currentStep === steps.length) ? '95%' : '100%', margin: '0 auto', transition: 'all 0.2s ease-in-out' }}>
       {/* Title */}
       <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
@@ -975,24 +1226,26 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
         </div>
       </div>
 
-      {/* Step Navigation Bar */}
+      {/* Step Navigation Bar (Strict Single-Row Horizontal Stepper) */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        background: 'var(--surface)', padding: '12px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+        background: 'var(--surface)', padding: '10px 16px',
         borderRadius: 'var(--r-xl)', border: '1.5px solid var(--border)',
         marginBottom: 24, boxShadow: 'var(--shadow-xs)',
-        flexWrap: 'wrap'
+        flexWrap: 'nowrap', width: '100%', boxSizing: 'border-box', overflowX: 'auto'
       }}>
         {steps.map((st, idx) => (
           <React.Fragment key={st.num}>
             <button
+              type="button"
               onClick={() => setCurrentStep(st.num)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8,
+                display: 'flex', alignItems: 'center', gap: 6,
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: currentStep === st.num ? 'var(--primary)' : 'var(--text-3)',
-                fontWeight: currentStep === st.num ? 700 : 500,
-                fontSize: 13, transition: 'color .15s'
+                fontWeight: currentStep === st.num ? 750 : 550,
+                fontSize: 12.5, transition: 'color .15s', whiteSpace: 'nowrap', flexShrink: 0,
+                padding: '4px 2px'
               }}
             >
               <div style={{
@@ -1000,14 +1253,14 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                 background: currentStep === st.num ? 'var(--primary)' : 'var(--surface-3)',
                 color: currentStep === st.num ? '#fff' : 'var(--text-2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700
+                fontSize: 11, fontWeight: 700, flexShrink: 0
               }}>
                 {st.num}
               </div>
-              {st.label}
+              <span>{st.label}</span>
             </button>
             {idx < steps.length - 1 && (
-              <div style={{ flex: 1, minWidth: '10px', height: 2, background: 'var(--border)' }} />
+              <div style={{ flex: '1 1 8px', minWidth: 6, height: 2, background: 'var(--border)', flexShrink: 1 }} />
             )}
           </React.Fragment>
         ))}
@@ -1018,7 +1271,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
         {/* ── ACTIVE STEP PANE ── */}
         <div className="flex-col gap-14" style={{ minHeight: 400 }}>
 
-          {/* STEP 1: Scope & Colors */}
+          {/* STEP 1: Scope & Platform */}
           {currentStep === 1 && (
             <div className="anim-fade-up flex-col gap-14">
               <Section title="Step 1: Brand & Platform Selection" accent="var(--primary)">
@@ -1043,19 +1296,76 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                     )}
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Output Platform Canvas</label>
-                    <select className="select" value={platform?.name}
-                      onChange={e => { const p = PLATFORMS.find(p => p.name === e.target.value); if (p) setPlatform(p); }}
+                    <label className="form-label" style={{ fontWeight: 650, color: 'var(--text-1)' }}>Output Platform Canvas</label>
+                    <div
+                      onClick={() => setIsPlatformPickerOpen(true)}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: '16px',
+                        border: '1.5px solid var(--border)',
+                        background: 'var(--surface)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = 'var(--primary)';
+                        e.currentTarget.style.boxShadow = '0 4px 14px rgba(108, 76, 241, 0.12)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.02)';
+                      }}
                     >
-                      {PLATFORMS.map((p, i) => (
-                        <option key={i} value={p.name}>{p.name} — {p.width}×{p.height} {p.unit}</option>
-                      ))}
-                    </select>
-                  </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '38px', height: '38px', borderRadius: '10px',
+                          background: 'rgba(108, 76, 241, 0.08)', color: '#6C4CF1',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 800, fontSize: '13px', flexShrink: 0,
+                          border: '1px solid rgba(108, 76, 241, 0.2)'
+                        }}>
+                          {platform?.shape === 'Square' ? '1:1' : platform?.shape === 'Portrait' ? '9:16' : '16:9'}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: 750, color: 'var(--text-1)' }}>
+                            {platform?.name || 'Instagram Post'}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 500, marginTop: '2px' }}>
+                            {platform?.width || 1080} × {platform?.height || 1080} {platform?.unit || 'px'} • {platform?.category || 'Social Media'}
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Color modes */}
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '7px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 700 }}
+                      >
+                        Choose Platform
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {/* STEP 2: Style */}
+          {currentStep === 2 && (
+            <div className="anim-fade-up flex-col gap-14">
+              <Section title="Step 2: Style" accent="var(--primary)">
+                <p style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 16 }}>
+                  Configure colors, typography and brand personality for this design.
+                </p>
+                <div className="flex-col gap-16">
+
+                  {/* Section 1: Color Style Mode */}
                   <div className="form-group">
-                    <label className="form-label">Color Style Mode</label>
+                    <label className="form-label" style={{ fontWeight: 650, color: 'var(--text-1)' }}>Color Style Mode</label>
                     {refImages.some(r => r.analysis?.colors?.length > 0) && refSettings.colors !== false ? (
                       <div style={{
                         padding: '10px 12px',
@@ -1070,11 +1380,12 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                         alignItems: 'center',
                         gap: '6px'
                       }}>
-                        <span>✨ Reference colors are checked in Step 4 and will take priority.</span>
+                        <span>✨ Reference colors are checked in Step 5 and will take priority.</span>
                       </div>
                     ) : (
                       <div className="flex gap-8 mt-6">
                         <button
+                          type="button"
                           className={`btn ${colorMode === 'brand' ? 'btn-primary' : 'btn-secondary'}`}
                           style={{ flex: 1, fontSize: 12.5 }}
                           onClick={() => setColorMode('brand')}
@@ -1083,6 +1394,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                           🎨 Brand Colors
                         </button>
                         <button
+                          type="button"
                           className={`btn ${colorMode === 'custom' ? 'btn-primary' : 'btn-secondary'}`}
                           style={{ flex: 1, fontSize: 12.5 }}
                           onClick={() => setColorMode('custom')}
@@ -1126,15 +1438,124 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                       </div>
                     )}
                   </div>
+
+                  {/* Section 2: Typography */}
+                  <div className="form-group" style={{ paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                    <label className="form-label" style={{ fontWeight: 650, color: 'var(--text-1)' }}>Typography</label>
+                    <div className="flex gap-8 mt-6">
+                      <button
+                        type="button"
+                        className={`btn ${typographyMode === 'brand' ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ flex: 1, fontSize: 12.5 }}
+                        onClick={() => setTypographyMode('brand')}
+                      >
+                        {typographyMode === 'brand' && <Check size={13} />}
+                        ✓ Use Brand Typography
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn ${typographyMode === 'custom' ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ flex: 1, fontSize: 12.5 }}
+                        onClick={() => setTypographyMode('custom')}
+                      >
+                        {typographyMode === 'custom' && <Check size={13} />}
+                        ✏️ Customize Typography
+                      </button>
+                    </div>
+
+                    {typographyMode === 'brand' ? (
+                      <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 8 }}>
+                        Automatically using typography from Brand Guidelines ({brand?.typography?.heading || 'Inter'} / {brand?.typography?.body || 'Inter'}).
+                      </div>
+                    ) : (
+                      <div className="flex-col gap-10 mt-12 anim-fade-up">
+                        <datalist id="font-options-list">
+                          {FONT_OPTIONS.map(f => <option key={f} value={f} />)}
+                        </datalist>
+
+                        <div className="form-group">
+                          <label className="form-label">Heading Font</label>
+                          <input
+                            type="text"
+                            className="input"
+                            list="font-options-list"
+                            style={{ fontSize: 13 }}
+                            value={customHeadingFont}
+                            onChange={e => setCustomHeadingFont(e.target.value)}
+                            placeholder="Type or select heading font (e.g. Playfair Display, Inter, Cinzel...)"
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Sub Heading Font</label>
+                          <input
+                            type="text"
+                            className="input"
+                            list="font-options-list"
+                            style={{ fontSize: 13 }}
+                            value={customSubHeadingFont}
+                            onChange={e => setCustomSubHeadingFont(e.target.value)}
+                            placeholder="Type or select sub-heading font (e.g. Plus Jakarta Sans, Roboto...)"
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Body Font</label>
+                          <input
+                            type="text"
+                            className="input"
+                            list="font-options-list"
+                            style={{ fontSize: 13 }}
+                            value={customBodyFont}
+                            onChange={e => setCustomBodyFont(e.target.value)}
+                            placeholder="Type or select body font (e.g. DM Sans, Inter, Lora...)"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section 3: Style & Tone */}
+                  <div className="form-group" style={{ paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                    <label className="form-label" style={{ fontWeight: 650, color: 'var(--text-1)' }}>Style & Tone</label>
+                    <div className="grid-2 gap-12 mt-6">
+                      <div className="form-group">
+                        <label className="form-label">Brand Style</label>
+                        <select
+                          className="select"
+                          value={brandStyle}
+                          onChange={e => setBrandStyle(e.target.value)}
+                        >
+                          {['Minimal', 'Modern', 'Premium', 'Luxury', 'Corporate', 'Bold'].map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Brand Tone</label>
+                        <select
+                          className="select"
+                          value={brandTone}
+                          onChange={e => setBrandTone(e.target.value)}
+                        >
+                          {['Professional', 'Friendly', 'Confident', 'Inspirational', 'Energetic', 'Casual'].map(t => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               </Section>
             </div>
           )}
 
-          {/* STEP 2: Content System */}
-          {currentStep === 2 && (
+          {/* STEP 3: Content System */}
+          {currentStep === 3 && (
             <div className="anim-fade-up flex-col gap-14">
-              <Section title="Step 2: Editorial Design Content" accent="#0ea5e9">
+              <Section title="Step 3: Editorial Design Content" accent="#0ea5e9">
                 <div className="flex-col gap-12">
 
                   {/* Design Name — always first */}
@@ -1174,10 +1595,10 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
             </div>
           )}
 
-          {/* STEP 3: Design Uploads */}
-          {currentStep === 3 && (
+          {/* STEP 4: Design Uploads */}
+          {currentStep === 4 && (
             <div className="anim-fade-up flex-col gap-14">
-              <Section title="Step 3: Design Specific Images" accent="#059669">
+              <Section title="Step 4: Design Specific Images" accent="#059669">
                 <p style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 16, lineHeight: 1.6 }}>
                   Upload image ingredients for this design prompt. Logo is always included from brand guidelines.
                 </p>
@@ -1259,11 +1680,11 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
             </div>
           )}
 
-          {/* STEP 4: Guidelines & References */}
-          {currentStep === 4 && (
+          {/* STEP 5: Guidelines & References */}
+          {currentStep === 5 && (
             <div className="anim-fade-up flex-col gap-14">
               {/* References Upload */}
-              <Section title="Step 4: Design Reference Images" badge={refImages.length} accent="#d97706">
+              <Section title="Step 5: Design Reference Images" badge={refImages.length} accent="#d97706">
                 <p style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 14, lineHeight: 1.6 }}>
                   Upload style guidelines, lighting sheets, or layout inspiration. AI extracts visual features instantly.
                 </p>
@@ -1411,41 +1832,93 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                       overflow: 'hidden'
                     }}>
                       {/* Dashboard Header */}
-                      <div style={{
-                        padding: '14px 18px',
-                        borderBottom: '1px solid var(--border)',
-                        background: 'var(--surface-2)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '12px'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '18px' }}>🎯</span>
+                      <div className="inspector-sticky-header" style={{ padding: '16px 24px', gap: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
+                          {activeRef.previewUrl ? (
+                            <img src={activeRef.previewUrl} alt={activeRef.name} style={{ width: 60, height: 60, borderRadius: '12px', objectFit: 'cover', border: '1.5px solid var(--inspector-border)' }} />
+                          ) : (
+                            <div style={{ width: 60, height: 60, borderRadius: '12px', background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', border: '1.5px solid var(--inspector-border)' }}>🖼️</div>
+                          )}
                           <div>
-                            <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--text-1)' }}>{activeRef.name} Analysis</div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-3)', fontWeight: 600 }}>Multi-Stage Computer Vision & Layout Inspector</div>
+                            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-1)', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={activeRef.name}>
+                              {activeRef.name}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--inspector-success)', background: 'rgba(16,185,129,0.08)', padding: '2px 6px', borderRadius: '12px', fontWeight: 700 }}>
+                                {avgConf}% Match
+                              </span>
+                              <span style={{ fontSize: '11px', color: 'var(--text-3)', fontWeight: 600 }}>
+                                1920 × 1080 px
+                              </span>
+                            </div>
                           </div>
-                          <span style={{
-                            background: 'rgba(16,185,129,.08)',
-                            color: '#10B981',
-                            padding: '3px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            border: '1px solid rgba(16,185,129,.22)'
-                          }}>
-                            {avgConf}% Vision Match
-                          </span>
+                        </div>
+
+                        {/* Sticky Search Bar */}
+                        <div style={{ flex: 1, maxWidth: '550px', display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => setIsRestoreModalOpen(true)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              height: '42px',
+                              padding: '0 12px',
+                              borderRadius: '10px',
+                              border: '1px solid var(--inspector-border)',
+                              background: '#ffffff',
+                              color: 'var(--text-2)',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              transition: 'all 0.15s ease'
+                            }}
+                            title="Restore Original Analysis"
+                          >
+                            ↻ Restore Original
+                          </button>
+                          <input
+                            type="text"
+                            id="inspector-search-input"
+                            placeholder="Search attributes (Press Ctrl+F)..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            style={{
+                              width: '100%',
+                              height: '42px',
+                              padding: '0 16px',
+                              fontSize: '14px',
+                              border: '1px solid var(--inspector-border)',
+                              borderRadius: '10px',
+                              outline: 'none',
+                              background: 'var(--surface-2)',
+                              color: 'var(--text-1)',
+                              boxSizing: 'border-box'
+                            }}
+                          />
                         </div>
 
                         {/* Top controls */}
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button onClick={exportTextAnalysis} className="btn btn-secondary btn-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 10px', fontSize: '11.5px' }}>
-                            📋 Copy Report
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                          <button
+                            onClick={() => setShowBottomFilters(!showBottomFilters)}
+                            className="btn btn-secondary btn-xs"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', height: '40px', padding: '0 12px', fontSize: '12.5px', background: showBottomFilters ? 'var(--primary-light)' : 'transparent', color: showBottomFilters ? 'var(--primary)' : 'var(--text-2)' }}
+                          >
+                            🔍 {showBottomFilters ? 'Hide Filters' : 'Show Filters'}
                           </button>
-                          <button onClick={downloadJSON} className="btn btn-secondary btn-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 10px', fontSize: '11.5px' }}>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(JSON.stringify(a, null, 2));
+                              alert('Analysis JSON copied to clipboard!');
+                            }}
+                            className="btn btn-secondary btn-xs"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', height: '40px', padding: '0 12px', fontSize: '12.5px' }}
+                          >
+                            📋 Copy JSON
+                          </button>
+                          <button onClick={downloadJSON} className="btn btn-secondary btn-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', height: '40px', padding: '0 12px', fontSize: '12.5px' }}>
                             ⬇️ Download JSON
                           </button>
                           <button
@@ -1458,12 +1931,12 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                               }
                             }}
                             className="btn btn-primary btn-xs"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 10px', fontSize: '11.5px' }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', height: '40px', padding: '0 12px', fontSize: '12.5px' }}
                           >
                             {isJSONEditing ? '💾 Save JSON' : '✏️ Edit JSON'}
                           </button>
                           {isJSONEditing && (
-                            <button onClick={() => setIsJSONEditing(false)} className="btn btn-secondary btn-xs" style={{ padding: '6px 10px', fontSize: '11.5px' }}>
+                            <button onClick={() => setIsJSONEditing(false)} className="btn btn-secondary btn-xs" style={{ height: '40px', padding: '0 12px', fontSize: '12.5px' }}>
                               Cancel
                             </button>
                           )}
@@ -1493,333 +1966,16 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                           />
                         </div>
                       ) : (
-                        <div>
-
-                          {/* RIGHT PANEL: Redesigned Grouped Attributes List */}
-                          <div style={{
-                            padding: '18px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px',
-                            background: 'var(--surface)'
-                          }}>
-                            {/* Search and Category Filters */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-                              <input 
-                                type="text" 
-                                placeholder="🔍 Search attributes (e.g. color, alignment)..." 
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '8px 12px',
-                                  fontSize: '13px',
-                                  border: '1.5px solid var(--border)',
-                                  borderRadius: '10px',
-                                  outline: 'none',
-                                  background: 'var(--surface-2)',
-                                  color: 'var(--text-1)'
-                                }}
-                              />
-                              <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '4px' }}>
-                                {[
-                                  { id: 'all', label: 'All Attributes' },
-                                  { id: 'branding', label: 'Branding & Style' },
-                                  { id: 'structure', label: 'Layout & Background' },
-                                  { id: 'content', label: 'Typography & Icons' },
-                                  { id: 'artistic', label: 'Composition & Lighting' }
-                                ].map(cat => (
-                                  <button
-                                    key={cat.id}
-                                    onClick={() => setCategoryFilter(cat.id)}
-                                    style={{
-                                      padding: '6px 12px',
-                                      fontSize: '11px',
-                                      fontWeight: 800,
-                                      border: '1px solid',
-                                      borderColor: categoryFilter === cat.id ? 'var(--primary)' : 'var(--border)',
-                                      background: categoryFilter === cat.id ? 'var(--primary-light)' : 'var(--surface-2)',
-                                      color: categoryFilter === cat.id ? 'var(--primary)' : 'var(--text-2)',
-                                      borderRadius: '8px',
-                                      cursor: 'pointer',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                  >
-                                    {cat.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Attribute Cards Grid */}
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                              gap: '14px',
-                              maxHeight: '440px',
-                              overflowY: 'auto',
-                              padding: '2px'
-                            }}>
-                              {CHECKLIST_ATTRIBUTES.filter(({ key, label, category }) => {
-                                // Filter by category
-                                if (categoryFilter !== 'all' && category !== categoryFilter) return false;
-                                // Filter by search query
-                                if (searchQuery.trim()) {
-                                  const query = searchQuery.toLowerCase();
-                                  const inLabel = label.toLowerCase().includes(query);
-                                  const inVal = JSON.stringify(a[key] || '').toLowerCase().includes(query);
-                                  return inLabel || inVal;
-                                }
-                                return true;
-                              }).map(({ key, label, icon }) => {
-                                const isEnabled = refSettings[key] !== false;
-                                const sectionData = a[key] || (key === 'branding' ? a.brand_analysis : null) || (key === 'style' ? a.design_style : null) || {};
-                                
-                                // Every section should include value, confidence, reason. Handle both structured and flat formats.
-                                const sectionVal = typeof sectionData === 'object' && sectionData !== null && 'value' in sectionData ? sectionData.value : sectionData;
-                                const sectionConf = typeof sectionData === 'object' && sectionData !== null && 'confidence' in sectionData ? sectionData.confidence : (conf[key] || 90);
-                                const sectionReason = typeof sectionData === 'object' && sectionData !== null && 'reason' in sectionData ? sectionData.reason : '';
-                                const isEditing = editingSectionKey === key;
-                                const isExpanded = !!expandedCards[key];
-                                let bulletPoints = [];
-
-                                // Determine color for confidence badge
-                                let badgeBg = 'rgba(16,185,129,.08)';
-                                let badgeColor = '#10B981';
-                                let badgeBorder = '1px solid rgba(16,185,129,.2)';
-                                let confEmoji = '🟢';
-                                if (sectionConf < 70) {
-                                  badgeBg = 'rgba(239,68,68,.08)';
-                                  badgeColor = '#EF4444';
-                                  badgeBorder = '1px solid rgba(239,68,68,.2)';
-                                  confEmoji = '🔴';
-                                } else if (sectionConf < 85) {
-                                  badgeBg = 'rgba(245,158,11,.08)';
-                                  badgeColor = '#F59E0B';
-                                  badgeBorder = '1px solid rgba(245,158,11,.2)';
-                                  confEmoji = '🟠';
-                                } else if (sectionConf < 95) {
-                                  badgeBg = 'rgba(59,130,246,.08)';
-                                  badgeColor = '#3B82F6';
-                                  badgeBorder = '1px solid rgba(59,130,246,.2)';
-                                  confEmoji = '🔵';
-                                }
-
-                                // Resolve section specific visual display content
-                                let contentRender;
-                                if (key === 'color_palette' && (a.color_palette || a.colors)) {
-                                  const paletteObj = a.color_palette || {};
-                                  const list = paletteObj.hex_codes || a.colors || [];
-                                  if (list.length === 0) {
-                                    contentRender = <div style={{ fontSize: '12.5px', color: '#64748B' }}>• No colors detected</div>;
-                                  } else {
-                                    contentRender = (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                                        {list.map((c, i) => {
-                                          const hexVal = typeof c === 'object' ? c.hex : c;
-                                          const pctVal = typeof c === 'object' ? c.percentage : 20;
-                                          const roleVal = typeof c === 'object' ? c.role : 'Palette Color';
-                                          return (
-                                            <div
-                                              key={i}
-                                              onClick={() => {
-                                                navigator.clipboard.writeText(hexVal);
-                                                alert(`Copied color: ${hexVal}`);
-                                              }}
-                                              style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                padding: '8px 12px',
-                                                background: '#F8FAFC',
-                                                borderRadius: '10px',
-                                                border: '1px solid #E2E8F0',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s'
-                                              }}
-                                            >
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <div style={{ width: '16px', height: '16px', borderRadius: '4px', background: hexVal, border: '1px solid rgba(0,0,0,0.1)' }} />
-                                                <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: '#1E293B' }}>{hexVal}</span>
-                                                <span style={{ fontSize: '11px', color: '#64748B', background: '#E2E8F0', padding: '2px 6px', borderRadius: '4px' }}>{roleVal}</span>
-                                              </div>
-                                              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>{pctVal}%</span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  }
-                               } else {
-                                  const resolveStringVal = (obj) => {
-                                    if (!obj) return '';
-                                    if (typeof obj === 'string') return obj;
-                                    if (Array.isArray(obj)) {
-                                      return obj.map(item => resolveStringVal(item)).join('\n');
-                                    }
-                                    if (typeof obj === 'object') {
-                                      if ('value' in obj) {
-                                        return resolveStringVal(obj.value);
-                                      }
-                                      return Object.entries(obj)
-                                        .map(([k, v]) => {
-                                          const valStr = resolveStringVal(v);
-                                          if (!valStr || valStr.toLowerCase() === 'not detected' || valStr.toLowerCase() === 'unknown') return '';
-                                          const cleanKey = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                                          return `${cleanKey}: ${valStr}`;
-                                        })
-                                        .filter(Boolean)
-                                        .join('\n');
-                                    }
-                                    return String(obj);
-                                  };
-
-                                  const rawStr = resolveStringVal(sectionData);
-                                  let bulletPoints = rawStr
-                                    .split('\n')
-                                    .map(line => line.trim())
-                                    .filter(line => line.length > 0)
-                                    .map(line => line.replace(/^[•\-\*\s]+/, ''))
-                                    .filter(line => line.toLowerCase() !== 'not detected' && line.toLowerCase() !== 'unknown');
-
-                                  if (bulletPoints.length === 0) {
-                                    contentRender = <div style={{ fontSize: '12.5px', color: '#64748B' }}>• Not Detected</div>;
-                                  } else {
-                                    const displayList = isExpanded ? bulletPoints : bulletPoints.slice(0, 2);
-                                    contentRender = (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                                        {displayList.map((pt, index) => (
-                                          <div key={index} style={{ fontSize: '12.5px', color: '#475569', lineHeight: 1.4 }}>
-                                            • {pt}
-                                          </div>
-                                        ))}
-                                        {bulletPoints.length > 2 && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }));
-                                            }}
-                                            style={{
-                                              background: 'none',
-                                              border: 'none',
-                                              padding: 0,
-                                              marginTop: '4px',
-                                              color: '#6C4CF1',
-                                              fontSize: '11.5px',
-                                              fontWeight: 750,
-                                              cursor: 'pointer',
-                                              textAlign: 'left'
-                                            }}
-                                          >
-                                            {isExpanded ? 'Collapse ↑' : 'Expand Details ↓'}
-                                          </button>
-                                        )}
-                                      </div>
-                                    );
-                                  }
-                                }
-
-                              const copySectionText = () => {
-                                const details = `Attribute: ${label}\nValue: ${JSON.stringify(sectionVal, null, 2)}\nConfidence: ${sectionConf}%\nReason: ${sectionReason}`;
-                                navigator.clipboard.writeText(details);
-                                alert(`Copied details for ${label}!`);
-                              };
-
-                              return (
-                                <div
-                                  key={key}
-                                  className="premium-card"
-                                  style={{
-                                    padding: '16px 20px',
-                                    background: isEnabled ? '#FFFFFF' : '#F8FAFC',
-                                    opacity: isEnabled ? 1 : 0.65,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'space-between',
-                                    minHeight: '180px'
-                                  }}
-                                >
-                                  <div>
-                                    {/* Header elements */}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <input
-                                          type="checkbox"
-                                          checked={isEnabled}
-                                          onChange={() => toggleAttribute(key)}
-                                          style={{ accentColor: '#6C4CF1', cursor: 'pointer', width: 14, height: 14 }}
-                                        />
-                                        <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#1E293B' }}>{icon} {label}</span>
-                                      </div>
-                                      {isEnabled && (
-                                        <span style={{
-                                          fontSize: '12px',
-                                          fontWeight: 700,
-                                          color: badgeColor
-                                        }}>
-                                          {confEmoji} {sectionConf}%
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Content body */}
-                                    <div style={{ flex: 1, marginBottom: '8px' }}>
-                                      {isEditing ? (
-                                        <textarea
-                                          value={sectionEditText}
-                                          onChange={e => setSectionEditText(e.target.value)}
-                                          style={{
-                                            width: '100%',
-                                            height: '80px',
-                                            fontSize: '12px',
-                                            padding: '8px',
-                                            border: '1.5px solid #6C4CF1',
-                                            borderRadius: '8px',
-                                            background: '#FFFFFF',
-                                            color: '#1E293B',
-                                            outline: 'none',
-                                            fontFamily: typeof sectionVal === 'object' ? 'monospace' : 'inherit'
-                                          }}
-                                        />
-                                      ) : (
-                                        contentRender
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* Action footer */}
-                                  {isEnabled && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #E2E8F0', paddingTop: '8px', marginTop: 'auto' }}>
-                                      <span style={{ fontSize: '11px', color: '#94A3B8', fontStyle: 'italic', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sectionReason}>
-                                        {sectionReason || 'Extracted via vision scan'}
-                                      </span>
-                                      <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button onClick={copySectionText} title="Copy Section Data" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', padding: 2 }}>
-                                          📋
-                                        </button>
-                                        <button
-                                          onClick={() => isEditing ? handleSectionSave(key) : handleSectionEditStart(key, a[key])}
-                                          style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            fontSize: '11.5px',
-                                            fontWeight: 800,
-                                            color: '#6C4CF1',
-                                            padding: 2
-                                          }}
-                                        >
-                                          {isEditing ? '💾 Save' : '✏️ Edit'}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        </div>
+                        <RedesignedInspector
+                          activeRef={activeRef}
+                          refSettings={refSettings}
+                          setRefImages={setRefImages}
+                          toggleAttribute={toggleAttribute}
+                          toggleAll={toggleAll}
+                          searchQuery={searchQuery}
+                          enableReferenceAnalysis={enableReferenceAnalysis}
+                          setEnableReferenceAnalysis={setEnableReferenceAnalysis}
+                        />
                       )}
                     </div>
                   </div>
@@ -1842,8 +1998,8 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
             </div>
           )}
 
-          {/* STEP 5: Final Compiled Prompt */}
-          {currentStep === 5 && (
+          {/* STEP 6: Final Compiled Prompt */}
+          {currentStep === 6 && (
             <div className="anim-fade-up" style={{ display: 'grid', gridTemplateColumns: '7.2fr 2.8fr', gap: '24px', alignItems: 'stretch', width: '100%' }}>
               
               {/* LEFT COLUMN: Large Preview */}
@@ -2021,6 +2177,27 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                 <div className="card" style={{ padding: '24px', borderRadius: '24px', border: '1.5px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, justifyContent: 'center' }}>
                   <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-1)', marginBottom: 4 }}>Quick Actions</div>
                   <button
+                    className="btn btn-primary btn-full"
+                    onClick={handleExplicitSaveDesign}
+                    disabled={explicitSaving || explicitSaveSuccess}
+                    style={{
+                      textAlign: 'center',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      fontSize: '13.5px',
+                      fontWeight: 700,
+                      background: explicitSaveSuccess ? '#059669' : 'var(--primary)',
+                      color: '#FFFFFF',
+                      boxShadow: '0 4px 14px rgba(108, 76, 241, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    {explicitSaveSuccess ? <><Check size={16} /> Saved to Library!</> : <><Save size={16} /> {explicitSaving ? 'Saving...' : 'Save Design to Library'}</>}
+                  </button>
+                  <button
                     className="btn btn-secondary btn-full"
                     onClick={() => navigateToPromptRoute('/prompt/view')}
                     style={{ textAlign: 'left', padding: '10px 14px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 550, color: 'var(--text-1)' }}
@@ -2137,11 +2314,11 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
               <ArrowLeft size={16} /> Back
             </button>
             <div style={{ fontSize: 13, color: '#64748B', fontWeight: 700 }}>
-              Step {currentStep} of 5
+              Step {currentStep} of {steps.length}
             </div>
             <button
               className="btn btn-primary"
-              disabled={currentStep === 5}
+              disabled={currentStep === steps.length}
               onClick={() => setCurrentStep(s => s + 1)}
               style={{
                 borderRadius: '12px',
@@ -2151,7 +2328,7 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
                 border: 'none',
                 background: '#6C4CF1',
                 color: '#FFFFFF',
-                cursor: currentStep === 5 ? 'not-allowed' : 'pointer',
+                cursor: currentStep === steps.length ? 'not-allowed' : 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px'
@@ -2162,6 +2339,42 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
           </div>
 
         </div>
+
+        {/* Restore Original Confirmation Modal */}
+        {isRestoreModalOpen && (
+          <div className="inspector-modal-overlay">
+            <div className="inspector-modal-content">
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-1)' }}>
+                Restore Original Analysis?
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-2)', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+                This will permanently discard all edits made after analysis.
+              </p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsRestoreModalOpen(false)}
+                  style={{
+                    padding: '8px 16px', fontSize: '13px', borderRadius: '8px', border: '1px solid var(--inspector-border)',
+                    background: 'white', color: 'var(--text-2)', fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestoreConfirm}
+                  style={{
+                    padding: '8px 16px', fontSize: '13px', borderRadius: '8px', border: 'none',
+                    background: 'var(--inspector-primary)', color: 'white', fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  Restore
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal Overlay for Viewing/Editing Prompt */}
         {showPromptModal && (
@@ -2298,7 +2511,730 @@ export default function PromptBuilder({ brands, selectedBrandId, setSelectedBran
           </div>
         )}
 
+        {/* Modern Platform Picker Modal */}
+        <PlatformPickerModal
+          isOpen={isPlatformPickerOpen}
+          onClose={() => setIsPlatformPickerOpen(false)}
+          selectedPlatform={platform}
+          onSelectPlatform={(p) => setPlatform(p)}
+        />
+
       </div>
+    </div>
+  );
+}
+
+function RedesignedInspector({ activeRef, refSettings, setRefImages, toggleAttribute, toggleAll, searchQuery, showBottomFilters, enableReferenceAnalysis, setEnableReferenceAnalysis }) {
+  const [editingAttrId, setEditingAttrId] = useState(null);
+  const [editingAttrText, setEditingAttrText] = useState('');
+  const [draggedAttrId, setDraggedAttrId] = useState(null);
+  const [draggedAttrKey, setDraggedAttrKey] = useState(null);
+
+  // Advanced UX States
+  const [expandedCategoriesKeys, setExpandedCategoriesKeys] = useState({});
+  const [categoryOverrides, setCategoryOverrides] = useState({});
+
+  // Add Attribute Modal States
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [activeAddKey, setActiveAddKey] = useState(null);
+  const [modalInputValue, setModalInputValue] = useState('');
+
+  const a = activeRef?.analysis || {};
+
+  // Deep Snapshot Undo/Redo Stacks
+  const [categoryAttributes, setCategoryAttributes] = useState(() => {
+    const initial = {};
+    CHECKLIST_ATTRIBUTES.forEach(({ key: k }) => {
+      initial[k] = getAttributesListFromAnalysis(k, a);
+    });
+    return initial;
+  });
+
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const lastActiveRefId = useRef(activeRef?.id);
+
+  // Initialize and track activeRef / analysis restore changes
+  useEffect(() => {
+    if (activeRef?.id !== lastActiveRefId.current) {
+      lastActiveRefId.current = activeRef?.id;
+      setUndoStack([]);
+      setRedoStack([]);
+    }
+    const initial = {};
+    CHECKLIST_ATTRIBUTES.forEach(({ key: k }) => {
+      initial[k] = getAttributesListFromAnalysis(k, a);
+    });
+    setCategoryAttributes(initial);
+  }, [activeRef?.id, activeRef?.analysis]);
+
+  // Global keyboard listener for Ctrl+Z / Ctrl+Y
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z') {
+          e.preventDefault();
+          triggerUndo();
+        } else if (e.key === 'y') {
+          e.preventDefault();
+          triggerRedo();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undoStack, redoStack, categoryAttributes]);
+
+  const parseColorString = (str) => {
+    const tagMatch = str.match(/^\[([^\]]+)\]\s*(.*)$/);
+    let role = 'Palette Color';
+    let remaining = str;
+    if (tagMatch) {
+      role = tagMatch[1];
+      remaining = tagMatch[2];
+    }
+    const hexRegex = /(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3})/;
+    const match = remaining.match(hexRegex);
+    const hex = match ? match[0] : '#000000';
+    if (!tagMatch) {
+      const cleanRemaining = remaining.replace(hex, '').replace(/[-:]/g, '').trim();
+      if (cleanRemaining) role = cleanRemaining;
+    }
+    return { hex, role, percentage: 20 };
+  };
+
+  function getAttributesListFromAnalysis(k, analysisObj) {
+    const sectionData = analysisObj[k] || (k === 'branding' ? analysisObj.brand_analysis : null) || (k === 'style' ? analysisObj.design_style : null) || {};
+    if (k === 'color_palette') {
+      const list = sectionData?.hex_codes || analysisObj.colors || [];
+      return list.map((c, idx) => {
+        const hexVal = typeof c === 'object' ? c.hex : c;
+        const roleVal = typeof c === 'object' ? c.role : 'Palette Color';
+        const pct = typeof c === 'object' ? c.percentage : 20;
+        return {
+          id: `color-${idx}-${hexVal}`,
+          text: `[${roleVal}] ${hexVal}`,
+          isColor: true,
+          hex: hexVal,
+          role: roleVal,
+          percentage: pct,
+          original: c
+        };
+      });
+    }
+
+    const resolveStringVal = (obj) => {
+      if (!obj) return '';
+      if (typeof obj === 'string') return obj;
+      if (Array.isArray(obj)) {
+        return obj.map(item => resolveStringVal(item)).join('\n');
+      }
+      if (typeof obj === 'object') {
+        if ('value' in obj) {
+          return resolveStringVal(obj.value);
+        }
+        return Object.entries(obj)
+          .map(([k2, v2]) => {
+            const valStr = resolveStringVal(v2);
+            if (!valStr || valStr.toLowerCase() === 'not detected' || valStr.toLowerCase() === 'unknown') return '';
+            return valStr;
+          })
+          .filter(Boolean)
+          .join('\n');
+      }
+      return String(obj);
+    };
+
+    const rawStr = resolveStringVal(sectionData);
+    const lines = rawStr.split('\n');
+    const points = [];
+    lines.forEach(line => {
+      const cleanLine = line.trim().replace(/^[•\\-\\*\\s]+/, '');
+      if (!cleanLine) return;
+      if (cleanLine.length > 50 && (cleanLine.includes(';') || cleanLine.includes('.'))) {
+        const parts = cleanLine.split(/[;.]/g);
+        parts.forEach(part => {
+          const cleanPart = part.trim();
+          if (cleanPart && cleanPart.toLowerCase() !== 'not detected' && cleanPart.toLowerCase() !== 'unknown') {
+            points.push(cleanPart);
+          }
+        });
+      } else {
+        if (cleanLine.toLowerCase() !== 'not detected' && cleanLine.toLowerCase() !== 'unknown') {
+          points.push(cleanLine);
+        }
+      }
+    });
+
+    return points.map((text, idx) => ({
+      id: `${k}-${idx}-${text.slice(0, 10)}`,
+      text
+    }));
+  }
+
+  const pushToUndo = (stateToPush) => {
+    setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(stateToPush))]);
+    setRedoStack([]);
+  };
+
+  const triggerUndo = () => {
+    if (undoStack.length === 0) return;
+    const previous = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    setRedoStack(prev => [...prev, JSON.parse(JSON.stringify(categoryAttributes))]);
+
+    setCategoryAttributes(previous);
+
+    CHECKLIST_ATTRIBUTES.forEach(({ key: k }) => {
+      const list = previous[k] || [];
+      if (k === 'color_palette') {
+        saveColorsToParent(list);
+      } else {
+        saveAttributesToParent(k, list);
+      }
+    });
+  };
+
+  const triggerRedo = () => {
+    if (redoStack.length === 0) return;
+    const nextState = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(categoryAttributes))]);
+
+    setCategoryAttributes(nextState);
+
+    CHECKLIST_ATTRIBUTES.forEach(({ key: k }) => {
+      const list = nextState[k] || [];
+      if (k === 'color_palette') {
+        saveColorsToParent(list);
+      } else {
+        saveAttributesToParent(k, list);
+      }
+    });
+  };
+
+  const saveColorsToParent = (newItems) => {
+    const hexCodes = newItems.map(item => {
+      if (item.original && typeof item.original === 'object') {
+        return { ...item.original, hex: item.hex, role: item.role };
+      }
+      return { hex: item.hex, role: item.role, percentage: item.percentage || 20 };
+    });
+    const updatedPalette = { ...a.color_palette, hex_codes: hexCodes };
+    setRefImages(prev => prev.map(item => {
+      if (item.id === activeRef.id) {
+        return { ...item, analysis: { ...item.analysis, color_palette: updatedPalette } };
+      }
+      return item;
+    }));
+  };
+
+  const saveAttributesToParent = (k, newItems) => {
+    const textValues = newItems.map(item => item.text);
+    const originalObj = a[k] || (k === 'branding' ? a.brand_analysis : null) || (k === 'style' ? a.design_style : null);
+    let parsedVal;
+    if (Array.isArray(originalObj)) {
+      parsedVal = textValues;
+    } else if (typeof originalObj === 'object' && originalObj !== null && 'value' in originalObj) {
+      parsedVal = { ...originalObj, value: textValues.join('\n') };
+    } else {
+      parsedVal = textValues.join('\n');
+    }
+    let updateKey = k;
+    if (k === 'branding' && !a.branding && a.brand_analysis) updateKey = 'brand_analysis';
+    if (k === 'style' && !a.style && a.design_style) updateKey = 'design_style';
+    setRefImages(prev => prev.map(item => {
+      if (item.id === activeRef.id) {
+        return { ...item, analysis: { ...item.analysis, [updateKey]: parsedVal } };
+      }
+      return item;
+    }));
+  };
+
+  const handleDragStart = (e, id, k) => {
+    setDraggedAttrId(id);
+    setDraggedAttrKey(k);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e, targetId, k) => {
+    e.preventDefault();
+    if (draggedAttrKey !== k) return;
+    const currentList = categoryAttributes[k] || [];
+    const draggedIndex = currentList.findIndex(item => item.id === draggedAttrId);
+    const targetIndex = currentList.findIndex(item => item.id === targetId);
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    pushToUndo(categoryAttributes);
+
+    const newList = [...currentList];
+    const [draggedItem] = newList.splice(draggedIndex, 1);
+    newList.splice(targetIndex, 0, draggedItem);
+
+    setCategoryAttributes(prev => ({ ...prev, [k]: newList }));
+
+    if (k === 'color_palette') {
+      saveColorsToParent(newList);
+    } else {
+      saveAttributesToParent(k, newList);
+    }
+    setDraggedAttrId(null);
+    setDraggedAttrKey(null);
+  };
+
+  const startEditing = (id, text) => {
+    setEditingAttrId(id);
+    setEditingAttrText(text);
+  };
+
+  const saveEdit = (id, k) => {
+    const currentList = categoryAttributes[k] || [];
+    const newList = currentList.map(item => {
+      if (item.id === id) {
+        if (k === 'color_palette') {
+          const parsed = parseColorString(editingAttrText);
+          return {
+            ...item,
+            text: `[${parsed.role}] ${parsed.hex}`,
+            hex: parsed.hex,
+            role: parsed.role
+          };
+        }
+        return { ...item, text: editingAttrText };
+      }
+      return item;
+    });
+
+    pushToUndo(categoryAttributes);
+
+    setCategoryAttributes(prev => ({ ...prev, [k]: newList }));
+
+    if (k === 'color_palette') {
+      saveColorsToParent(newList);
+    } else {
+      saveAttributesToParent(k, newList);
+    }
+    setEditingAttrId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingAttrId(null);
+  };
+
+  const deleteAttribute = (id, k) => {
+    const currentList = categoryAttributes[k] || [];
+    pushToUndo(categoryAttributes);
+    const newList = currentList.filter(item => item.id !== id);
+    setCategoryAttributes(prev => ({ ...prev, [k]: newList }));
+    if (k === 'color_palette') {
+      saveColorsToParent(newList);
+    } else {
+      saveAttributesToParent(k, newList);
+    }
+  };
+
+  const openAddModal = (k) => {
+    setActiveAddKey(k);
+    setModalInputValue('');
+    setIsAddModalOpen(true);
+  };
+
+  const handleAddSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!modalInputValue.trim() || !activeAddKey) {
+      setIsAddModalOpen(false);
+      return;
+    }
+    const currentList = categoryAttributes[activeAddKey] || [];
+    let newItem;
+    if (activeAddKey === 'color_palette') {
+      const parsed = parseColorString(modalInputValue);
+      newItem = {
+        id: `color-${Date.now()}-${parsed.hex}`,
+        text: `[${parsed.role}] ${parsed.hex}`,
+        isColor: true,
+        hex: parsed.hex,
+        role: parsed.role,
+        percentage: 20
+      };
+    } else {
+      newItem = {
+        id: `${activeAddKey}-${Date.now()}-${modalInputValue.slice(0, 10)}`,
+        text: modalInputValue.trim()
+      };
+    }
+
+    pushToUndo(categoryAttributes);
+
+    const newList = [...currentList, newItem];
+    setCategoryAttributes(prev => ({ ...prev, [activeAddKey]: newList }));
+
+    if (activeAddKey === 'color_palette') {
+      saveColorsToParent(newList);
+    } else {
+      saveAttributesToParent(activeAddKey, newList);
+    }
+    setIsAddModalOpen(false);
+    setModalInputValue('');
+  };
+
+  const extractTagAndText = (text) => {
+    const match = text.match(/^\[([^\]]+)\]\s*(.*)$/);
+    if (match) return { tag: match[1], cleanText: match[2] };
+    return { tag: null, cleanText: text };
+  };
+
+  const highlightMatchText = (text) => {
+    if (!searchQuery.trim()) return text;
+    const query = searchQuery.trim();
+    const parts = text.split(new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) =>
+          part.toLowerCase() === query.toLowerCase()
+            ? <span key={i} className="highlight-match">{part}</span>
+            : part
+        )}
+      </span>
+    );
+  };
+
+  // Grouping ordered items
+  const REQUESTED_ORDER = [
+    'industry', 'style', 'color_palette', 'typography',
+    'layout', 'composition', 'branding', 'background',
+    'images', 'icons', 'lighting', 'design_type'
+  ];
+
+  const getImportanceClass = (key) => {
+    if (['industry', 'style', 'color_palette', 'typography'].includes(key)) {
+      return 'importance-high';
+    }
+    if (['layout', 'composition', 'branding', 'background'].includes(key)) {
+      return 'importance-medium';
+    }
+    return 'importance-low';
+  };
+
+  const filteredCategories = CHECKLIST_ATTRIBUTES.filter(({ key: k, label }) => {
+    const currentAttrs = categoryAttributes[k] || [];
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    if (label.toLowerCase().includes(query) || k.toLowerCase().includes(query)) return true;
+    return currentAttrs.some(attr => attr.text.toLowerCase().includes(query));
+  });
+
+  const sortedCategories = [...filteredCategories].sort((a, b) => {
+    return REQUESTED_ORDER.indexOf(a.key) - REQUESTED_ORDER.indexOf(b.key);
+  });
+
+  return (
+    <div style={{ background: 'var(--inspector-bg)', padding: '20px' }}>
+      
+      {/* Top Global Reference Controls */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--inspector-border)' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-1)' }}>Reference Analysis</h2>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', cursor: 'pointer', userSelect: 'none' }}>
+            <input 
+              type="checkbox" 
+              checked={enableReferenceAnalysis} 
+              onChange={() => setEnableReferenceAnalysis(!enableReferenceAnalysis)}
+              style={{ display: 'none' }}
+            />
+            <span className={`custom-checkbox ${enableReferenceAnalysis ? 'checked' : ''}`} />
+            <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-2)' }}>Enable Reference Analysis</span>
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => toggleAll(true)}
+            disabled={!enableReferenceAnalysis}
+            style={{
+              background: 'none', border: '1px solid var(--inspector-border)', borderRadius: '6px',
+              padding: '6px 12px', fontSize: '12.5px', fontWeight: 700,
+              cursor: enableReferenceAnalysis ? 'pointer' : 'not-allowed',
+              opacity: enableReferenceAnalysis ? 1 : 0.5,
+              color: 'var(--inspector-primary)'
+            }}
+          >
+            Select All
+          </button>
+          <button
+            onClick={() => toggleAll(false)}
+            disabled={!enableReferenceAnalysis}
+            style={{
+              background: 'none', border: '1px solid var(--inspector-border)', borderRadius: '6px',
+              padding: '6px 12px', fontSize: '12.5px', fontWeight: 700,
+              cursor: enableReferenceAnalysis ? 'pointer' : 'not-allowed',
+              opacity: enableReferenceAnalysis ? 1 : 0.5,
+              color: 'var(--text-3)'
+            }}
+          >
+            Deselect All
+          </button>
+        </div>
+      </div>
+
+      {/* High Density Grid */}
+      <div className="inspector-grid" style={{ padding: 0 }}>
+        {sortedCategories.map(({ key: k, label, icon }) => {
+          const currentAttrs = categoryAttributes[k] || [];
+          const matchingAttrs = searchQuery.trim()
+            ? currentAttrs.filter(attr => attr.text.toLowerCase().includes(searchQuery.toLowerCase()))
+            : currentAttrs;
+
+          const cardLabel = categoryOverrides[k] || label;
+          const isEnabled = refSettings[k] !== false;
+
+          // Card default height view limits
+          const maxVisible = 5;
+          const isShowingAll = !!expandedCategoriesKeys[k];
+          const visibleAttrs = isShowingAll || matchingAttrs.length <= maxVisible
+            ? matchingAttrs
+            : matchingAttrs.slice(0, maxVisible);
+
+          return (
+            <div key={k} className={`category-card ${getImportanceClass(k)} ${isShowingAll ? 'expanded' : ''}`} style={{ opacity: (!enableReferenceAnalysis || !isEnabled) ? 0.9 : 1 }}>
+              {/* Card Header */}
+              <div className="category-card-header" style={{ marginBottom: '10px', height: '36px' }}>
+                <div className="category-card-title" style={{ flex: 1, minWidth: 0, fontSize: '15px' }}>
+                  <span style={{ fontSize: '15px' }}>{icon}</span>
+                  <span style={{ fontSize: '14.5px', fontWeight: 600, color: 'var(--text-1)' }}>
+                    {highlightMatchText(cardLabel)}
+                  </span>
+                  <span className="category-card-badge" style={{ fontSize: '11px', padding: '1px 5px' }}>
+                    {currentAttrs.length}
+                  </span>
+                  {(!enableReferenceAnalysis || !isEnabled) && (
+                    <span style={{ fontSize: '10px', color: 'var(--text-3)', fontWeight: 600, background: '#F1F5F9', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>
+                      Excluded from Prompt
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: enableReferenceAnalysis ? 'pointer' : 'not-allowed' }}>
+                    <input
+                      type="checkbox"
+                      checked={isEnabled}
+                      disabled={!enableReferenceAnalysis}
+                      onChange={() => enableReferenceAnalysis && toggleAttribute(k)}
+                      style={{ display: 'none' }}
+                    />
+                    <span className={`custom-checkbox ${isEnabled ? 'checked' : ''} ${!enableReferenceAnalysis ? 'disabled' : ''}`} />
+                  </label>
+
+                  <button
+                    className="inspector-add-btn"
+                    onClick={() => openAddModal(k)}
+                    title="Add Attribute"
+                  >
+                    ➕
+                  </button>
+                </div>
+              </div>
+
+              {/* Card Content */}
+              <div className="attributes-list">
+                {matchingAttrs.length === 0 ? (
+                  <div style={{ padding: '8px 4px', textAlign: 'center', color: 'var(--text-3)', fontSize: '12px', width: '100%' }}>
+                    <div>No attributes available.</div>
+                  </div>
+                ) : (
+                  visibleAttrs.map((item) => {
+                    const isInlineEditing = editingAttrId === item.id;
+                    const { tag, cleanText } = extractTagAndText(item.text);
+                    const tagClass = tag ? tag.toLowerCase() : '';
+                    const chipClass = ['primary', 'secondary', 'important', 'optional'].includes(tagClass) ? tagClass : 'default';
+
+                    // Dedicated visual types
+                    let chipVisual = null;
+                    if (k === 'color_palette') {
+                      chipVisual = (
+                        <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: item.hex, border: '1px solid rgba(0,0,0,0.15)', flexShrink: 0 }} />
+                      );
+                    } else if (k === 'typography') {
+                      chipVisual = (
+                        <span style={{ fontSize: '10px', fontWeight: 800, background: '#E2E8F0', padding: '0 3px', borderRadius: '3px', color: '#475569', flexShrink: 0 }}>Aa</span>
+                      );
+                    } else if (k === 'layout') {
+                      chipVisual = (
+                        <span style={{ fontSize: '11px', color: '#6366F1', flexShrink: 0 }}>📐</span>
+                      );
+                    } else if (k === 'images') {
+                      chipVisual = (
+                        <span style={{ fontSize: '11px', color: '#F59E0B', flexShrink: 0 }}>📦</span>
+                      );
+                    } else if (k === 'branding') {
+                      chipVisual = (
+                        <span style={{ fontSize: '11px', color: '#10B981', flexShrink: 0 }}>🏷️</span>
+                      );
+                    } else if (k === 'background') {
+                      chipVisual = (
+                        <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: 'linear-gradient(135deg, #6366F1, #EC4899)', border: '1px solid rgba(0,0,0,0.1)', flexShrink: 0 }} />
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="attribute-box"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, item.id, k)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, item.id, k)}
+                        onClick={(e) => {
+                          if (e.target.closest('.attribute-box-actions') || isInlineEditing) return;
+                          const textToCopy = k === 'color_palette' ? `${item.hex} ${item.role}` : cleanText;
+                          navigator.clipboard.writeText(textToCopy);
+                          addNotification?.('Copied: ' + textToCopy);
+                        }}
+                        title="Click to copy value"
+                      >
+                        {isInlineEditing ? (
+                          <input
+                            className="attribute-box-input"
+                            value={editingAttrText}
+                            onChange={e => setEditingAttrText(e.target.value)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') saveEdit(item.id, k);
+                                if (e.key === 'Escape') cancelEdit();
+                            }}
+                            onBlur={() => saveEdit(item.id, k)}
+                            autoFocus
+                          />
+                        ) : (
+                          <>
+                            <div className="attribute-box-content">
+                              {chipVisual}
+                              {tag && k !== 'color_palette' && (
+                                <span className={`tag-chip ${chipClass}`}>{tag}</span>
+                              )}
+                              <span className="attribute-box-text">
+                                {k === 'color_palette' ? (
+                                  <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-1)' }}>{highlightMatchText(item.hex)}</span>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>{highlightMatchText(item.role)}</span>
+                                  </span>
+                                ) : (
+                                  highlightMatchText(cleanText)
+                                )}
+                              </span>
+                              <span className="chip-copy-indicator" title="Copy to clipboard">📋</span>
+                            </div>
+
+                            <div className="attribute-box-actions">
+                              <button
+                                className="action-icon-btn"
+                                title="Edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEditing(item.id, item.text);
+                                }}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                className="action-icon-btn delete"
+                                title="Delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteAttribute(item.id, k);
+                                }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Centered, Sticky, Inside-Card Footer */}
+              {matchingAttrs.length > maxVisible && (
+                <div className="category-card-footer">
+                  <button
+                    className="category-card-footer-btn"
+                    onClick={() => setExpandedCategoriesKeys(prev => ({ ...prev, [k]: !prev[k] }))}
+                  >
+                    {isShowingAll ? '▲ Show Less' : `▼ View All (${matchingAttrs.length})`}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add Attribute Dialog Modal */}
+      {isAddModalOpen && (
+        <div className="inspector-modal-overlay" onClick={() => setIsAddModalOpen(false)}>
+          <div className="inspector-modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-1)' }}>
+              Add Attribute
+            </h3>
+            <form onSubmit={handleAddSubmit}>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-2)', marginBottom: '8px' }}>
+                  Attribute Name
+                </label>
+                <input
+                  type="text"
+                  className="attribute-box-input"
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    padding: '0 12px',
+                    border: '1.5px solid var(--inspector-border)',
+                    borderRadius: '8px',
+                    background: 'var(--surface-2)',
+                    fontSize: '13.5px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                  placeholder="e.g. Minimalist layout"
+                  value={modalInputValue}
+                  onChange={(e) => setModalInputValue(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  style={{
+                    padding: '8px 16px', fontSize: '13px', borderRadius: '8px', border: '1px solid var(--inspector-border)',
+                    background: 'white', color: 'var(--text-2)', fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 16px', fontSize: '13px', borderRadius: '8px', border: 'none',
+                    background: 'var(--inspector-primary)', color: 'white', fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
